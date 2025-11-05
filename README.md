@@ -68,6 +68,49 @@ build_exe.bat
 
 Distribuisci solo il file `Matrici.exe` - non richiede installazione di Python!
 
+## 🌐 Uso Multi-Utente (10+ Persone)
+
+Matrici supporta **lavoro collaborativo con database condiviso**!
+
+### Setup Consigliato: SQL Server Express
+
+**Per 10+ utenti che lavorano contemporaneamente:**
+
+1. **Server (una volta):**
+   ```bash
+   # Installa SQL Server Express (gratuito)
+   # Esegui setup automatico:
+   python scripts/setup_sqlserver.py
+   ```
+
+2. **Ogni PC Client:**
+   ```bash
+   # Copia database_config.ini dal server
+   # Modifica "server" con nome/IP del server
+   # Avvia Matrici → Tutti vedono stessi dati!
+   ```
+
+**Funzionalità Multi-Utente:**
+- ✅ **Refresh Automatico**: Vedi modifiche degli altri utenti ogni 30 sec
+- ✅ **Notifiche**: Avvisi quando qualcuno modifica dati
+- ✅ **Gestione Conflitti**: Protezione da modifiche concorrenti
+- ✅ **Utenti Online**: Vedi chi è connesso
+- ✅ **100+ utenti supportati**
+
+**Alternativa Semplice: Access su Rete**
+
+Per piccoli team (max 10 utenti):
+```ini
+# database_config.ini
+[database]
+type = access
+path = \\server\share\operator_overtime.accdb
+```
+
+📚 **Guida Completa**: Vedi [`docs/MULTIUSER_SETUP.md`](docs/MULTIUSER_SETUP.md)
+
+---
+
 ## Guida Rapida
 
 ### 1. Primo Avvio

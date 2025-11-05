@@ -1,0 +1,76 @@
+# Configurazione Database Multi-Utente
+# Copia questo file in "database_config.ini" e configura secondo le tue esigenze
+
+# ============================================================================
+# OPZIONE 1: SQL Server (CONSIGLIATO per 10+ utenti)
+# ============================================================================
+# Decommenta e configura per usare SQL Server
+
+# [database]
+# type = sqlserver
+# server = localhost\SQLEXPRESS
+# database = Matrici
+# trusted_connection = yes
+#
+# # Oppure con autenticazione SQL Server:
+# # trusted_connection = no
+# # username = matrici_user
+# # password = your_password
+
+# ============================================================================
+# OPZIONE 2: Access su Rete Condivisa (per max 10 utenti)
+# ============================================================================
+# Decommenta e configura per Access su share di rete
+
+# [database]
+# type = access
+# path = \\server\share\Matrici\operator_overtime.accdb
+#
+# # Oppure percorso locale per test:
+# # path = C:\Matrici\data\operator_overtime.accdb
+
+# ============================================================================
+# OPZIONE 3: SQLite Locale (DEFAULT - singolo utente)
+# ============================================================================
+[database]
+type = sqlite
+path = data/operator_overtime.db
+
+# ============================================================================
+# OPZIONI MULTI-UTENTE
+# ============================================================================
+[multiuser]
+# Abilita refresh automatico dati
+auto_refresh = yes
+
+# Intervallo refresh in secondi
+refresh_interval = 30
+
+# Mostra notifiche quando altri utenti modificano dati
+show_notifications = yes
+
+# ID Utente (per tracking modifiche)
+# Verrà richiesto al login se non specificato
+user_id =
+
+# ============================================================================
+# NOTE IMPORTANTI
+# ============================================================================
+#
+# SQL SERVER SETUP:
+# 1. Installa SQL Server Express (gratuito):
+#    https://www.microsoft.com/it-it/sql-server/sql-server-downloads
+# 2. Crea database "Matrici"
+# 3. Esegui script: scripts/create_sqlserver_database.sql
+# 4. Configura firewall per porta 1433
+# 5. Abilita TCP/IP in SQL Server Configuration Manager
+#
+# ACCESS SU RETE:
+# 1. Crea share di rete: \\server\Matrici
+# 2. Dai permessi Lettura/Scrittura agli utenti
+# 3. Copia database .accdb nella share
+# 4. Tutti gli utenti devono avere Access Database Engine installato
+#
+# SQLITE (non multi-utente):
+# - Solo per test o singolo utente
+# - Non adatto per uso concorrente
