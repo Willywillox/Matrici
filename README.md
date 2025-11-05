@@ -72,42 +72,60 @@ Distribuisci solo il file `Matrici.exe` - non richiede installazione di Python!
 
 Matrici supporta **lavoro collaborativo con database condiviso**!
 
-### Setup Consigliato: SQL Server Express
+### 🏢 Setup per Intranet Aziendale (CONSIGLIATO)
 
-**Per 10+ utenti che lavorano contemporaneamente:**
+**Ideale se:**
+- ✅ Lavori in **rete aziendale chiusa** (senza internet)
+- ✅ Avete già **Microsoft Office** installato
+- ✅ Siete **5-10 persone** in ufficio
 
-1. **Server (una volta):**
-   ```bash
-   # Installa SQL Server Express (gratuito)
-   # Esegui setup automatico:
-   python scripts/setup_sqlserver.py
-   ```
+**Setup in 10 minuti:**
 
-2. **Ogni PC Client:**
-   ```bash
-   # Copia database_config.ini dal server
-   # Modifica "server" con nome/IP del server
-   # Avvia Matrici → Tutti vedono stessi dati!
-   ```
+```bash
+# Sul server:
+1. Esegui: create_access_network.bat
+2. Copia database su share: \\server\Matrici\
 
-**Funzionalità Multi-Utente:**
-- ✅ **Refresh Automatico**: Vedi modifiche degli altri utenti ogni 30 sec
-- ✅ **Notifiche**: Avvisi quando qualcuno modifica dati
-- ✅ **Gestione Conflitti**: Protezione da modifiche concorrenti
-- ✅ **Utenti Online**: Vedi chi è connesso
-- ✅ **100+ utenti supportati**
-
-**Alternativa Semplice: Access su Rete**
-
-Per piccoli team (max 10 utenti):
-```ini
-# database_config.ini
-[database]
-type = access
-path = \\server\share\operator_overtime.accdb
+# Su ogni PC client:
+1. Copia Matrici.exe + database_config.ini
+2. Avvia → Funziona!
 ```
 
-📚 **Guida Completa**: Vedi [`docs/MULTIUSER_SETUP.md`](docs/MULTIUSER_SETUP.md)
+📄 **Guida Rapida**: [`QUICK_START_INTRANET.md`](QUICK_START_INTRANET.md)
+
+**Vantaggi:**
+- ✅ **Nessun download** da internet necessario
+- ✅ **Nessun software** da installare (Office già presente)
+- ✅ **Setup semplicissimo** (10 minuti totali)
+- ✅ **Funziona offline** al 100%
+- ✅ **Supporta 10 utenti** simultanei
+
+---
+
+### 🌍 Setup per Ambiente con Internet
+
+**Per 15+ utenti o necessità avanzate:**
+
+```bash
+# Installa SQL Server Express (gratuito da internet)
+python scripts/setup_sqlserver.py
+```
+
+**Vantaggi:**
+- ✅ **100+ utenti** supportati
+- ✅ **Performance** superiori
+- ✅ **Backup automatici**
+- ✅ **Nessun rischio corruzione**
+
+📚 **Guida SQL Server**: [`docs/MULTIUSER_SETUP.md`](docs/MULTIUSER_SETUP.md)
+
+---
+
+**Funzionalità Multi-Utente (entrambe le soluzioni):**
+- ✅ **Refresh Automatico**: Vedi modifiche degli altri ogni 30-45 sec
+- ✅ **Notifiche**: Avvisi quando qualcuno modifica dati
+- ✅ **Gestione Conflitti**: Protezione da modifiche concorrenti
+- ✅ **Tracking utenti**: Vedi chi ha modificato cosa
 
 ---
 
