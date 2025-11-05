@@ -197,6 +197,16 @@ class MatriciApp:
         ttk.Combobox(filter_frame, textvariable=self.filter_skill_var,
                     values=['Tutte'], width=20, state='readonly').pack(side='left', padx=5)
 
+        # Filtro ricerca globale
+        ttk.Label(filter_frame, text="🔍 Cerca:").pack(side='left', padx=(20, 5))
+        self.filter_search_var = tk.StringVar()
+        self.filter_search_var.trace('w', lambda *args: self.refresh_operatori())
+        search_entry = ttk.Entry(filter_frame, textvariable=self.filter_search_var, width=25)
+        search_entry.pack(side='left', padx=5)
+
+        ttk.Button(filter_frame, text="🗑️ Pulisci",
+                  command=lambda: self.filter_search_var.set('')).pack(side='left', padx=5)
+
         ttk.Button(filter_frame, text="Applica Filtri", command=self.refresh_operatori).pack(side='left', padx=10)
 
         # Tabella operatori
@@ -340,11 +350,15 @@ class MatriciApp:
             data_filtro = self.filter_date_var.get() if hasattr(self, 'filter_date_var') else None
             operatori = self.db_manager.get_operatori(data_filtro)
 
+            # Filtro di ricerca globale
+            search_text = self.filter_search_var.get().lower().strip() if hasattr(self, 'filter_search_var') else ''
+
             # Clear
             for item in self.tree_operatori.get_children():
                 self.tree_operatori.delete(item)
 
             # Populate
+            count = 0
             for row in operatori:
                 if hasattr(row, 'cursor_description'):
                     # Access/pyodbc
@@ -381,11 +395,23 @@ class MatriciApp:
                     # Fallback se indici non corrispondono
                     row_data = values[:12] if len(values) >= 12 else values
 
+                # Applica filtro di ricerca globale su tutte le colonne
+                if search_text:
+                    # Converti tutti i valori in stringa e cerca in ciascuna colonna
+                    row_text = ' '.join(str(v).lower() for v in row_data if v is not None)
+                    if search_text not in row_text:
+                        continue  # Salta questa riga se non matcha
+
                 self.tree_operatori.insert('', 'end', values=row_data)
+                count += 1
 
             self.db_manager.close()
 
-            self.status_label.config(text=f"Operatori caricati: {len(operatori)}")
+            # Mostra contatore con info sul filtro
+            if search_text:
+                self.status_label.config(text=f"Operatori visualizzati: {count} (filtrati da {len(operatori)})")
+            else:
+                self.status_label.config(text=f"Operatori caricati: {len(operatori)}")
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nel caricamento operatori:\n{e}")
