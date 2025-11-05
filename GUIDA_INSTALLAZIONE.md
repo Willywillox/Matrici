@@ -55,9 +55,25 @@ pip install --no-index --find-links=pacchetti_python -r requirements.txt
 ## 🗄️ FASE 2: Creazione Database Access
 
 ### Passo 2.1: Scegli dove mettere il database
-Per uso multi-utente (10 persone), serve una **cartella di rete condivisa**:
-- Esempio: `\\SERVER-AZIENDALE\Condivisa\Matrici\`
-- Se non sai il percorso, chiedi all'IT di creare una cartella condivisa
+Per uso multi-utente (10 persone), serve una **cartella di rete condivisa**.
+
+Hai **3 opzioni**:
+
+#### **OPZIONE 1 - SharePoint/Teams (RACCOMANDATO se usi Microsoft 365)** 🌟
+- Percorso: `\\tuaazienda.sharepoint.com@SSL\sites\NomeTeam\Shared Documents\Matrici\`
+- Integrato con Microsoft Teams
+- Backup automatico con versioning
+- **📖 Segui la guida:** `docs/SHAREPOINT_SETUP.md`
+
+#### **OPZIONE 2 - File Server Aziendale**
+- Percorso: `\\SERVER-AZIENDALE\Condivisa\Matrici\`
+- Server file tradizionale
+- Chiedi all'IT di creare la cartella condivisa
+
+#### **OPZIONE 3 - Locale (solo per test)**
+- Percorso: `C:\Matrici\data\`
+- Solo 1 utente alla volta
+- Solo per testing, NON per produzione
 
 ### Passo 2.2: Crea il database
 Hai due opzioni:
