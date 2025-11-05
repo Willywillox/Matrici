@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from database.db_manager import DatabaseManager
 from database.db_creator import DatabaseCreator
 from gui.operatore_form import OperatoreForm
+from gui.quick_edit_dialog import QuickEditDialog
 from gui.capability_dashboard import CapabilityDashboard
 from gui.riepilogo_screen import RiepilogoScreen
 
@@ -171,6 +172,8 @@ class MatriciApp:
 
         ttk.Button(toolbar, text="➕ Nuovo Operatore", command=self.nuovo_operatore,
                   width=20, style='Accent.TButton').pack(side='left', padx=5)
+        ttk.Button(toolbar, text="⚡ Modifiche Rapide", command=self.modifiche_rapide,
+                  width=20, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="✏️ Modifica", command=self.modifica_operatore,
                   width=15).pack(side='left', padx=5)
         ttk.Button(toolbar, text="🗑️ Elimina", command=self.elimina_operatore,
@@ -209,7 +212,7 @@ class MatriciApp:
 
         # Treeview
         columns = ('ID', 'ID_SAP', 'Nome', 'Cognome', 'Contratto', 'FTE',
-                   'Turno', 'Skill', 'Data', 'Straordinari', 'Pause', 'Giustificativi')
+                   'Turno', 'Skill', 'Postazione', 'Data', 'Straordinari', 'Pause', 'Giustificativi')
 
         self.tree_operatori = ttk.Treeview(table_frame, columns=columns, show='headings',
                                            yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
@@ -219,7 +222,7 @@ class MatriciApp:
 
         # Intestazioni
         widths = {'ID': 50, 'ID_SAP': 80, 'Nome': 100, 'Cognome': 100, 'Contratto': 100,
-                 'FTE': 50, 'Turno': 100, 'Skill': 120, 'Data': 90,
+                 'FTE': 50, 'Turno': 100, 'Skill': 120, 'Postazione': 110, 'Data': 90,
                  'Straordinari': 80, 'Pause': 60, 'Giustificativi': 100}
 
         for col in columns:
@@ -280,6 +283,28 @@ class MatriciApp:
         self.root.wait_window(form)
         self.refresh_operatori()
 
+    def modifiche_rapide(self):
+        """Apre dialog modifiche rapide giornaliere"""
+        # Prendi operatore selezionato se esiste
+        operatore_id = None
+        selection = self.tree_operatori.selection()
+        if selection:
+            item = self.tree_operatori.item(selection[0])
+            operatore_id = item['values'][0]
+
+        # Prendi data dai filtri
+        data_str = self.filter_date_var.get()
+        try:
+            data = datetime.strptime(data_str, '%Y-%m-%d')
+        except:
+            data = datetime.now()
+
+        dialog = QuickEditDialog(self.root, self.db_manager, operatore_id=operatore_id, data=data)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+        self.refresh_operatori()
+
     def elimina_operatore(self):
         """Elimina operatore selezionato"""
         selection = self.tree_operatori.selection()
@@ -335,6 +360,8 @@ class MatriciApp:
 
                 # Estrai campi principali (indici dipendono dalla struttura tabella)
                 try:
+                    postazione = values[44] if len(values) > 44 and values[44] else 'Non specificata'
+
                     row_data = (
                         values[0],  # ID
                         values[3],  # ID_SAP
@@ -344,6 +371,7 @@ class MatriciApp:
                         values[5] if values[5] else '',  # FTE
                         values[7] if values[7] else '',  # ID_Turno
                         values[42] if values[42] else '',  # Etichetta_Skill
+                        postazione,  # Postazione
                         values[43] if values[43] else '',  # Data_Riferimento
                         strao_count,
                         pause_count,

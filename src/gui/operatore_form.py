@@ -143,6 +143,15 @@ class OperatoreForm(tk.Toplevel):
         self.create_field(scrollable_frame, row, "Etichetta Skill *:", "Etichetta_Skill",
                          combo_values=skills_list, entry_width=30)
 
+        # === SEZIONE POSTAZIONE ===
+        row += 1
+        self.create_section(scrollable_frame, "POSTAZIONE (Sede/Smart Working)", row)
+
+        row += 1
+        postazioni = ['', 'Sede', 'Smart Working', 'Trasferta', 'Permesso', 'Assente']
+        self.create_field(scrollable_frame, row, "Postazione:", "Postazione",
+                         combo_values=postazioni, entry_width=20, default='Sede')
+
         # === BOTTONI ===
         row += 1
         btn_frame = ttk.Frame(scrollable_frame)

@@ -78,7 +78,8 @@ class DatabaseCreator:
                     Inizio_Giust_5 DATETIME,
                     Fine_Giust_5 DATETIME,
                     Etichetta_Skill TEXT(100),
-                    Data_Riferimento DATETIME NOT NULL
+                    Data_Riferimento DATETIME NOT NULL,
+                    Postazione TEXT(20)
                 )
             """)
 
@@ -201,7 +202,8 @@ class DatabaseCreator:
                 Inizio_Giust_5 TEXT,
                 Fine_Giust_5 TEXT,
                 Etichetta_Skill TEXT,
-                Data_Riferimento TEXT NOT NULL
+                Data_Riferimento TEXT NOT NULL,
+                Postazione TEXT
             )
         """)
 
