@@ -2,6 +2,36 @@
 
 Tool desktop per la gestione e il monitoraggio della copertura operatori con analisi dettagliata di turni straordinari, pause, giustificativi e confronto con i forecast.
 
+---
+
+## 🇮🇹 INIZIA QUI - Guide in Italiano
+
+**Prima volta? Segui queste guide:**
+
+1. **📘 [GUIDA_INSTALLAZIONE.md](GUIDA_INSTALLAZIONE.md)** - Guida completa passo-passo (RACCOMANDATO)
+   - Setup Python e dipendenze
+   - Creazione database Access per intranet
+   - Costruzione exe per Windows
+   - Distribuzione a 10 utenti
+
+2. **🚀 [ISTRUZIONI_RAPIDE.md](ISTRUZIONI_RAPIDE.md)** - Guida veloce (5 minuti)
+   - Setup amministratore
+   - Istruzioni utenti finali
+   - Manutenzione settimanale
+
+3. **✅ Verifica Setup**
+   ```cmd
+   python verifica_setup.py
+   ```
+   - Controlla che tutto sia configurato correttamente
+
+**Documentazione completa:**
+- `docs/ACCESS_NETWORK_SETUP.md` - Setup dettagliato Access multi-utente
+- `docs/GUI_GUIDE.md` - Guida interfaccia utente
+- `QUICK_START_INTRANET.md` - Setup rapido per reti chiuse (10 min)
+
+---
+
 ## Caratteristiche Principali
 
 ### 📊 Dashboard Intraday
