@@ -26,6 +26,7 @@ Tool desktop per la gestione e il monitoraggio della copertura operatori con ana
    - Controlla che tutto sia configurato correttamente
 
 **Documentazione completa:**
+- **📊 [GUIDA_IMPORT_EXCEL.md](GUIDA_IMPORT_EXCEL.md)** - Import massivo operatori da Excel
 - `docs/ACCESS_NETWORK_SETUP.md` - Setup dettagliato Access multi-utente
 - `docs/GUI_GUIDE.md` - Guida interfaccia utente
 - `QUICK_START_INTRANET.md` - Setup rapido per reti chiuse (10 min)

@@ -174,6 +174,8 @@ class MatriciApp:
                   width=20, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="⚡ Modifiche Rapide", command=self.modifiche_rapide,
                   width=20, style='Accent.TButton').pack(side='left', padx=5)
+        ttk.Button(toolbar, text="📊 Importa Excel", command=self.importa_excel,
+                  width=18, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="✏️ Modifica", command=self.modifica_operatore,
                   width=15).pack(side='left', padx=5)
         ttk.Button(toolbar, text="🗑️ Elimina", command=self.elimina_operatore,
@@ -314,6 +316,108 @@ class MatriciApp:
         dialog.grab_set()
         self.root.wait_window(dialog)
         self.refresh_operatori()
+
+    def importa_excel(self):
+        """Importa operatori da file Excel"""
+        from tkinter import filedialog
+        import subprocess
+        import threading
+
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel da importare",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ],
+            initialdir="."
+        )
+
+        if not file_path:
+            return
+
+        # Conferma import
+        if not messagebox.askyesno(
+            "Conferma Import",
+            f"Importare operatori da:\n{file_path}\n\n"
+            "ATTENZIONE:\n"
+            "• Se ID_SAP + Data esistono già, i dati verranno AGGIORNATI\n"
+            "• L'operazione potrebbe richiedere alcuni minuti\n\n"
+            "Continuare?"
+        ):
+            return
+
+        # Crea finestra progresso
+        progress_window = tk.Toplevel(self.root)
+        progress_window.title("Import in corso...")
+        progress_window.geometry("500x300")
+        progress_window.transient(self.root)
+        progress_window.grab_set()
+
+        ttk.Label(progress_window, text="Import Excel in corso...",
+                 style='Title.TLabel').pack(pady=10)
+
+        # Text widget per output
+        output_text = tk.Text(progress_window, height=15, width=60)
+        output_text.pack(padx=10, pady=10, fill='both', expand=True)
+
+        scroll = ttk.Scrollbar(output_text)
+        scroll.pack(side='right', fill='y')
+        output_text.config(yscrollcommand=scroll.set)
+        scroll.config(command=output_text.yview)
+
+        # Bottone chiudi (disabilitato durante import)
+        close_btn = ttk.Button(progress_window, text="Chiudi", state='disabled',
+                              command=progress_window.destroy)
+        close_btn.pack(pady=10)
+
+        def run_import():
+            """Esegue import in thread separato"""
+            try:
+                # Esegui script import
+                script_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                                          'scripts', 'import_excel_operatori.py')
+
+                process = subprocess.Popen(
+                    [sys.executable, script_path, '--file', file_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Leggi output in tempo reale
+                for line in process.stdout:
+                    output_text.insert('end', line)
+                    output_text.see('end')
+                    output_text.update()
+
+                process.wait()
+
+                # Risultato finale
+                if process.returncode == 0:
+                    output_text.insert('end', "\n✓ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
+                else:
+                    output_text.insert('end', "\n✗ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+
+                output_text.see('end')
+
+                # Abilita bottone chiudi
+                close_btn.config(state='normal')
+
+                # Refresh lista
+                self.refresh_operatori()
+
+            except Exception as e:
+                output_text.insert('end', f"\n✗ ERRORE: {str(e)}\n", 'error')
+                output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+                close_btn.config(state='normal')
+
+        # Avvia import in thread
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
 
     def elimina_operatore(self):
         """Elimina operatore selezionato"""
