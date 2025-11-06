@@ -27,6 +27,7 @@ Tool desktop per la gestione e il monitoraggio della copertura operatori con ana
 
 **Documentazione completa:**
 - **📊 [GUIDA_IMPORT_EXCEL.md](GUIDA_IMPORT_EXCEL.md)** - Import massivo operatori da Excel
+- **🤖 [docs/PAUSE_AUTOMATICHE.md](docs/PAUSE_AUTOMATICHE.md)** - Sistema distribuzione intelligente pause
 - **☁️ [docs/SHAREPOINT_SETUP.md](docs/SHAREPOINT_SETUP.md)** - Setup su Microsoft Teams/SharePoint (RACCOMANDATO per Microsoft 365)
 - `docs/ACCESS_NETWORK_SETUP.md` - Setup dettagliato Access multi-utente (file server)
 - `docs/GUI_GUIDE.md` - Guida interfaccia utente

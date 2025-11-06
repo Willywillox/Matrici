@@ -107,6 +107,34 @@ class OperatoreForm(tk.Toplevel):
         row += 1
         self.create_section(scrollable_frame, "PAUSE (Max 5 Slot)", row)
 
+        # Checkbox e bottone pause automatiche
+        row += 1
+        pause_auto_frame = ttk.Frame(scrollable_frame)
+        pause_auto_frame.grid(row=row, column=0, columnspan=6, sticky='w', padx=5, pady=5)
+
+        self.pause_auto_var = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            pause_auto_frame,
+            text="🤖 Calcola pause automaticamente (distribuzione intelligente)",
+            variable=self.pause_auto_var
+        ).pack(side='left', padx=5)
+
+        ttk.Button(
+            pause_auto_frame,
+            text="⚡ Calcola Ora",
+            command=self.calcola_pause_automatiche,
+            width=15
+        ).pack(side='left', padx=5)
+
+        # Label info distribuzione
+        self.pause_info_label = ttk.Label(
+            pause_auto_frame,
+            text="",
+            foreground='blue',
+            font=('Arial', 8, 'italic')
+        )
+        self.pause_info_label.pack(side='left', padx=10)
+
         for i in range(1, 6):
             row += 1
             ttk.Label(scrollable_frame, text=f"Pausa {i}:", font=('Arial', 9, 'bold')).grid(
@@ -243,6 +271,77 @@ class OperatoreForm(tk.Toplevel):
             self.db_manager.close()
         except Exception as e:
             messagebox.showerror("Errore", f"Errore caricamento operatore: {e}")
+
+    def calcola_pause_automatiche(self):
+        """Calcola e assegna pause automaticamente con distribuzione intelligente"""
+        from utils.pause_scheduler import PauseScheduler
+
+        # Validazione campi necessari
+        ora_inizio = self.vars.get('Ora_Inizio_Turno', tk.StringVar()).get().strip()
+        ora_fine = self.vars.get('Ora_Fine_Turno', tk.StringVar()).get().strip()
+        skill = self.vars.get('Etichetta_Skill', tk.StringVar()).get().strip()
+        data = self.vars.get('Data_Riferimento', tk.StringVar()).get().strip()
+
+        if not ora_inizio:
+            messagebox.showwarning("Attenzione", "Inserisci Ora Inizio Turno prima")
+            return
+
+        if not skill:
+            messagebox.showwarning("Attenzione", "Seleziona Skill prima")
+            return
+
+        if not data:
+            messagebox.showwarning("Attenzione", "Inserisci Data Riferimento prima")
+            return
+
+        try:
+            # Crea scheduler
+            scheduler = PauseScheduler(self.db_manager)
+
+            # Determina ID_SAP corrente (se editing)
+            id_sap_corrente = None
+            if self.operatore_id:
+                id_sap_corrente = self.vars.get('ID_SAP', tk.StringVar()).get().strip()
+
+            # Calcola pause (1 pausa di 15 minuti)
+            pause = scheduler.calcola_pause_automatiche(
+                ora_inizio_turno=ora_inizio,
+                ora_fine_turno=ora_fine or "18:00",
+                skill=skill,
+                data_riferimento=data,
+                id_sap_corrente=id_sap_corrente,
+                num_pause=1  # 1 pausa di 15 minuti
+            )
+
+            if not pause:
+                messagebox.showinfo("Info", "Non è stato possibile calcolare pause automatiche.\nTurno troppo corto o dati non validi.")
+                return
+
+            # Assegna pause ai campi
+            for idx, (inizio, fine) in enumerate(pause, 1):
+                if idx <= 5:  # Max 5 slot pause
+                    self.vars[f'Inizio_Pausa_{idx}'].set(inizio)
+                    self.vars[f'Fine_Pausa_{idx}'].set(fine)
+
+            # Mostra info distribuzione
+            dist = scheduler.visualizza_distribuzione(skill, data)
+            info_text = f"Slot 1h45: {dist['slot_1h45']} | Slot 2h: {dist['slot_2h']} | Slot 2h15: {dist['slot_2h15']} operatori"
+            self.pause_info_label.config(text=info_text)
+
+            messagebox.showinfo(
+                "Pause Calcolate",
+                f"✅ Pause assegnate automaticamente!\n\n"
+                f"Distribuzione attuale:\n"
+                f"• Slot 1h45 (dopo inizio turno): {dist['slot_1h45']} operatori\n"
+                f"• Slot 2h (dopo inizio turno): {dist['slot_2h']} operatori\n"
+                f"• Slot 2h15 (dopo inizio turno): {dist['slot_2h15']} operatori\n\n"
+                f"Bilanciamento: {dist['bilanciamento']}"
+            )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore calcolo pause:\n{e}")
+            import traceback
+            traceback.print_exc()
 
     def salva(self):
         """Salva l'operatore"""
