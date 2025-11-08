@@ -45,7 +45,8 @@ class OperatoreForm(tk.Toplevel):
 
         # Canvas per scroll
         canvas = tk.Canvas(main_frame)
-        scrollbar = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollbar_v = ttk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        scrollbar_h = ttk.Scrollbar(main_frame, orient="horizontal", command=canvas.xview)
         scrollable_frame = ttk.Frame(canvas)
 
         scrollable_frame.bind(
@@ -54,7 +55,7 @@ class OperatoreForm(tk.Toplevel):
         )
 
         canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        canvas.configure(yscrollcommand=scrollbar_v.set, xscrollcommand=scrollbar_h.set)
 
         # === SEZIONE DATI ANAGRAFICI ===
         self.create_section(scrollable_frame, "DATI ANAGRAFICI", 0)
@@ -198,12 +199,15 @@ class OperatoreForm(tk.Toplevel):
         ttk.Button(btn_frame, text="Annulla", command=self.destroy,
                   width=20).pack(side='left', padx=10)
 
-        # Pack canvas
+        # Pack scrollbars e canvas
+        scrollbar_h.pack(side="bottom", fill="x")
+        scrollbar_v.pack(side="right", fill="y")
         canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
 
-        # Bind mousewheel
+        # Bind mousewheel per scroll verticale
         canvas.bind_all("<MouseWheel>", lambda e: canvas.yview_scroll(int(-1*(e.delta/120)), "units"))
+        # Bind shift+mousewheel per scroll orizzontale
+        canvas.bind_all("<Shift-MouseWheel>", lambda e: canvas.xview_scroll(int(-1*(e.delta/120)), "units"))
 
     def create_section(self, parent, title, row):
         """Crea una sezione header"""
