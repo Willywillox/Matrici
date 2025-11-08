@@ -16,8 +16,16 @@ class OperatoreForm(tk.Toplevel):
         self.operatore_id = operatore_id
 
         self.title("Anagrafica Operatore" if not operatore_id else "Modifica Operatore")
-        self.geometry("900x700")
-        self.resizable(False, False)
+        self.geometry("850x600")
+        self.resizable(True, True)
+
+        # Centra finestra
+        self.update_idletasks()
+        screen_width = self.winfo_screenwidth()
+        screen_height = self.winfo_screenheight()
+        x = (screen_width - 850) // 2
+        y = (screen_height - 600) // 2
+        self.geometry(f"850x600+{x}+{y}")
 
         # Variabili form
         self.vars = {}

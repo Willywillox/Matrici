@@ -480,6 +480,25 @@ class MatriciApp:
                 try:
                     postazione = values[44] if len(values) > 44 and values[44] else 'Non specificata'
 
+                    # Formatta orario turno come "09:00-18:00"
+                    ora_inizio = values[8] if len(values) > 8 and values[8] else None
+                    ora_fine = values[9] if len(values) > 9 and values[9] else None
+
+                    if ora_inizio and ora_fine:
+                        # Estrai solo HH:MM se è datetime
+                        inizio_str = str(ora_inizio)
+                        fine_str = str(ora_fine)
+                        if ' ' in inizio_str:
+                            inizio_str = inizio_str.split(' ')[1][:5]
+                        if ' ' in fine_str:
+                            fine_str = fine_str.split(' ')[1][:5]
+                        turno_display = f"{inizio_str}-{fine_str}"
+                    elif values[7]:
+                        # Fallback: mostra ID_Turno se orari non disponibili
+                        turno_display = str(values[7])
+                    else:
+                        turno_display = ''
+
                     row_data = (
                         values[0],  # ID
                         values[3],  # ID_SAP
@@ -487,7 +506,7 @@ class MatriciApp:
                         values[2],  # Cognome
                         values[4] if values[4] else '',  # Tipo_Contratto
                         values[5] if values[5] else '',  # FTE
-                        values[7] if values[7] else '',  # ID_Turno
+                        turno_display,  # Turno (ora mostra "09:00-18:00")
                         values[42] if values[42] else '',  # Etichetta_Skill
                         postazione,  # Postazione
                         values[43] if values[43] else '',  # Data_Riferimento
