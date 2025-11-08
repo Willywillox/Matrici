@@ -118,14 +118,14 @@ class ExcelImporter:
         try:
             if sheet_name:
                 df = pd.read_excel(file_path, sheet_name=sheet_name)
-                print(f"✓ File letto: {file_path} (foglio: {sheet_name})")
+                print(f"[OK] File letto: {file_path} (foglio: {sheet_name})")
             else:
                 df = pd.read_excel(file_path)
-                print(f"✓ File letto: {file_path}")
+                print(f"[OK] File letto: {file_path}")
 
             print(f"  Righe trovate: {len(df)}\n")
         except Exception as e:
-            print(f"✗ Errore lettura file Excel: {e}")
+            print(f"[ERROR] Errore lettura file Excel: {e}")
             return None
 
         # Colonne richieste
@@ -133,7 +133,7 @@ class ExcelImporter:
         missing = [col for col in required_cols if col not in df.columns]
 
         if missing:
-            print(f"✗ Colonne obbligatorie mancanti: {', '.join(missing)}")
+            print(f"[ERROR] Colonne obbligatorie mancanti: {', '.join(missing)}")
             print(f"\nColonne trovate: {', '.join(df.columns)}")
             print(f"\nUsa il template: templates/template_import_operatori.xlsx")
             return None
@@ -216,18 +216,18 @@ class ExcelImporter:
 
                     self.db_manager.execute_update(query, tuple(values))
                     self.updated += 1
-                    print(f"  ↻ Riga {row_num}: {nome} {cognome} (ID_SAP: {id_sap}) - AGGIORNATO")
+                    print(f"  [UPD] Riga {row_num}: {nome} {cognome} (ID_SAP: {id_sap}) - AGGIORNATO")
 
                 else:
                     # Insert
                     self.db_manager.insert_operatore(dati)
                     self.imported += 1
-                    print(f"  ✓ Riga {row_num}: {nome} {cognome} (ID_SAP: {id_sap}) - IMPORTATO")
+                    print(f"  [OK] Riga {row_num}: {nome} {cognome} (ID_SAP: {id_sap}) - IMPORTATO")
 
             except Exception as e:
                 error_msg = f"Riga {row_num}: Errore import - {str(e)}"
                 self.errors.append(error_msg)
-                print(f"  ✗ {error_msg}")
+                print(f"  [ERROR] {error_msg}")
                 self.skipped += 1
 
         self.db_manager.close()
@@ -248,9 +248,9 @@ class ExcelImporter:
         print(f"\n{'='*60}")
         print(f"  RIEPILOGO IMPORT")
         print(f"{'='*60}")
-        print(f"  ✓ Nuovi operatori importati:     {self.imported}")
-        print(f"  ↻ Operatori aggiornati:          {self.updated}")
-        print(f"  ✗ Righe saltate (errori):        {self.skipped}")
+        print(f"  [OK] Nuovi operatori importati:     {self.imported}")
+        print(f"  [UPD] Operatori aggiornati:         {self.updated}")
+        print(f"  [ERROR] Righe saltate (errori):     {self.skipped}")
         print(f"{'='*60}\n")
 
         if self.errors:
@@ -276,7 +276,7 @@ def main():
 
     # Verifica file esista
     if not Path(args.file).exists():
-        print(f"✗ File non trovato: {args.file}")
+        print(f"[ERROR] File non trovato: {args.file}")
         return 1
 
     # Crea importer

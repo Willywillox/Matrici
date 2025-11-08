@@ -44,15 +44,15 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
 
     # Verifica file
     if not Path(excel_file).exists():
-        print(f"❌ File non trovato: {excel_file}")
+        print(f"[ERROR] File non trovato: {excel_file}")
         return False
 
     # Leggi Excel
     try:
         df = pd.read_excel(excel_file, sheet_name='Forecast')
-        print(f"✓ File Excel letto: {len(df)} righe\n")
+        print(f"[OK] File Excel letto: {len(df)} righe\n")
     except Exception as e:
-        print(f"❌ Errore lettura file Excel: {e}")
+        print(f"[ERROR] Errore lettura file Excel: {e}")
         print("Assicurarsi che esista sheet 'Forecast'")
         return False
 
@@ -61,7 +61,7 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
     missing_cols = [col for col in required_cols if col not in df.columns]
 
     if missing_cols:
-        print(f"❌ Colonne mancanti: {', '.join(missing_cols)}")
+        print(f"[ERROR] Colonne mancanti: {', '.join(missing_cols)}")
         print(f"Colonne trovate: {', '.join(df.columns)}")
         return False
 
@@ -83,7 +83,7 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
                         "DELETE FROM Forecast WHERE Data_Riferimento = ?",
                         (data_str,)
                     )
-                    print(f"🗑️  Eliminati forecast esistenti per {data_str}")
+                    print(f"[DEL] Eliminati forecast esistenti per {data_str}")
             print()
 
         # Conta forecast esistenti
@@ -128,7 +128,7 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
 
                 # Validazioni
                 if volumi_attesi < 0:
-                    print(f"  ⚠️  Riga {idx+2}: Volumi negativi, skip")
+                    print(f"  [WARN] Riga {idx+2}: Volumi negativi, skip")
                     skipped += 1
                     continue
 
@@ -170,11 +170,11 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
                 imported += 1
 
             except ValueError as e:
-                print(f"  ❌ Riga {idx+2}: Valore non valido - {e}")
+                print(f"  [ERROR] Riga {idx+2}: Valore non valido - {e}")
                 errors += 1
                 continue
             except Exception as e:
-                print(f"  ❌ Riga {idx+2}: Errore - {e}")
+                print(f"  [ERROR] Riga {idx+2}: Errore - {e}")
                 errors += 1
                 continue
 
@@ -182,16 +182,16 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
         print(f"\n{'='*70}")
         print(f"  RIEPILOGO IMPORT")
         print(f"{'='*70}")
-        print(f"✓ Importati:             {imported}")
-        print(f"⏭️  Saltati:              {skipped}")
-        print(f"❌ Errori:                {errors}")
+        print(f"[OK] Importati:             {imported}")
+        print(f"[SKIP] Saltati:             {skipped}")
+        print(f"[ERROR] Errori:             {errors}")
 
         # Conta totale finale
         cursor = db_manager.execute_query(
             "SELECT COUNT(*) as count FROM Forecast"
         )
         totale_forecast = cursor[0][0] if cursor else 0
-        print(f"📊 Totale forecast:       {totale_forecast}")
+        print(f"[INFO] Totale forecast:     {totale_forecast}")
 
         # Mostra riepilogo per data e skill
         print(f"\n{'='*70}")
@@ -222,7 +222,7 @@ def import_forecast(excel_file, db_path='data/operator_overtime.db', replace_exi
         return errors == 0
 
     except Exception as e:
-        print(f"❌ Errore database: {e}")
+        print(f"[ERROR] Errore database: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -255,7 +255,7 @@ def delete_forecast_by_date(data, db_path='data/operator_overtime.db'):
             return True
 
         # Chiedi conferma
-        print(f"⚠️  Verranno eliminati {count} record forecast per {data}")
+        print(f"[WARN] Verranno eliminati {count} record forecast per {data}")
         conferma = input("Confermare? (s/N): ")
 
         if conferma.lower() != 's':
@@ -269,13 +269,13 @@ def delete_forecast_by_date(data, db_path='data/operator_overtime.db'):
             (data,)
         )
 
-        print(f"✓ Eliminati {count} record\n")
+        print(f"[OK] Eliminati {count} record\n")
 
         db_manager.close()
         return True
 
     except Exception as e:
-        print(f"❌ Errore: {e}")
+        print(f"[ERROR] Errore: {e}")
         return False
 
 
@@ -305,7 +305,7 @@ if __name__ == '__main__':
     if '--delete-date' in sys.argv:
         idx = sys.argv.index('--delete-date')
         if idx + 1 >= len(sys.argv):
-            print("❌ Specificare la data da eliminare")
+            print("[ERROR] Specificare la data da eliminare")
             sys.exit(1)
 
         data = sys.argv[idx + 1]
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     excel_file = sys.argv[1]
 
     if not os.path.exists(excel_file):
-        print(f"❌ File non trovato: {excel_file}")
+        print(f"[ERROR] File non trovato: {excel_file}")
         sys.exit(1)
 
     replace = '--replace' in sys.argv

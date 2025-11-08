@@ -48,7 +48,7 @@ class ImportCompleto:
 
         # Verifica file
         if not Path(file_path).exists():
-            print(f"❌ File non trovato: {file_path}")
+            print(f"[ERROR] File non trovato: {file_path}")
             return None
 
         # Connetti database
@@ -56,23 +56,23 @@ class ImportCompleto:
 
         try:
             # === PASSO 1: IMPORT SKILLS ===
-            print(f"\n{'─'*70}")
-            print("📋 STEP 1/3: IMPORT SKILLS")
-            print(f"{'─'*70}\n")
+            print(f"\n{'-'*70}")
+            print("[1/3] STEP 1/3: IMPORT SKILLS")
+            print(f"{'-'*70}\n")
 
             self.import_skills(file_path)
 
             # === PASSO 2: IMPORT TURNI ===
-            print(f"\n{'─'*70}")
-            print("🕐 STEP 2/3: IMPORT TURNI")
-            print(f"{'─'*70}\n")
+            print(f"\n{'-'*70}")
+            print("[2/3] STEP 2/3: IMPORT TURNI")
+            print(f"{'-'*70}\n")
 
             self.import_turni(file_path)
 
             # === PASSO 3: IMPORT OPERATORI ===
-            print(f"\n{'─'*70}")
-            print("👥 STEP 3/3: IMPORT OPERATORI")
-            print(f"{'─'*70}\n")
+            print(f"\n{'-'*70}")
+            print("[3/3] STEP 3/3: IMPORT OPERATORI")
+            print(f"{'-'*70}\n")
 
             self.import_operatori(file_path)
 
@@ -88,10 +88,10 @@ class ImportCompleto:
         """Import skills da sheet Skills"""
         try:
             df = pd.read_excel(file_path, sheet_name='Skills')
-            print(f"✓ Sheet 'Skills' letto: {len(df)} righe\n")
+            print(f"[OK] Sheet 'Skills' letto: {len(df)} righe\n")
 
             if 'Codice_Skill' not in df.columns:
-                print("❌ Colonna 'Codice_Skill' mancante!")
+                print("[ERROR] Colonna 'Codice_Skill' mancante!")
                 return
 
             for idx, row in df.iterrows():
@@ -111,7 +111,7 @@ class ImportCompleto:
                     )
 
                     if existing:
-                        print(f"  ⏭️  Skill '{codice}' già esistente, skip")
+                        print(f"  [SKIP] Skill '{codice}' già esistente, skip")
                         self.stats['skills']['skipped'] += 1
                         continue
 
@@ -122,27 +122,27 @@ class ImportCompleto:
                     """
                     self.db_manager.execute_update(query, (codice, descrizione, produttivita))
 
-                    print(f"  ✓ Skill '{codice}' importata")
+                    print(f"  [OK] Skill '{codice}' importata")
                     self.stats['skills']['imported'] += 1
 
                 except Exception as e:
-                    print(f"  ❌ Riga {idx+2}: Errore - {e}")
+                    print(f"  [ERROR] Riga {idx+2}: Errore - {e}")
                     self.stats['skills']['errors'] += 1
 
         except Exception as e:
-            print(f"❌ Errore lettura sheet Skills: {e}")
+            print(f"[ERROR] Errore lettura sheet Skills: {e}")
 
     def import_turni(self, file_path):
         """Import turni da sheet Turni"""
         try:
             df = pd.read_excel(file_path, sheet_name='Turni')
-            print(f"✓ Sheet 'Turni' letto: {len(df)} righe\n")
+            print(f"[OK] Sheet 'Turni' letto: {len(df)} righe\n")
 
             required = ['ID_Turno', 'Ora_Inizio', 'Ora_Fine']
             missing = [col for col in required if col not in df.columns]
 
             if missing:
-                print(f"❌ Colonne mancanti: {', '.join(missing)}")
+                print(f"[ERROR] Colonne mancanti: {', '.join(missing)}")
                 return
 
             for idx, row in df.iterrows():
@@ -187,15 +187,15 @@ class ImportCompleto:
                         ora_inizio_spezzato, ora_fine_spezzato, note
                     ))
 
-                    print(f"  ✓ Turno '{id_turno}': {ora_inizio}-{ora_fine} ({ore_turno}h)")
+                    print(f"  [OK] Turno '{id_turno}': {ora_inizio}-{ora_fine} ({ore_turno}h)")
                     self.stats['turni']['imported'] += 1
 
                 except Exception as e:
-                    print(f"  ❌ Riga {idx+2}: Errore - {e}")
+                    print(f"  [ERROR] Riga {idx+2}: Errore - {e}")
                     self.stats['turni']['errors'] += 1
 
         except Exception as e:
-            print(f"❌ Errore lettura sheet Turni: {e}")
+            print(f"[ERROR] Errore lettura sheet Turni: {e}")
 
     def import_operatori(self, file_path):
         """Import operatori da sheet Operatori"""
@@ -215,7 +215,7 @@ class ImportCompleto:
                 }
 
         except Exception as e:
-            print(f"❌ Errore import operatori: {e}")
+            print(f"[ERROR] Errore import operatori: {e}")
             import traceback
             traceback.print_exc()
 
@@ -241,21 +241,21 @@ class ImportCompleto:
         print(f"  RIEPILOGO IMPORT COMPLETO")
         print(f"{'='*70}")
 
-        print(f"\n📋 SKILLS:")
-        print(f"  ✓ Importate:  {self.stats['skills']['imported']}")
-        print(f"  ⏭️  Saltate:    {self.stats['skills']['skipped']}")
-        print(f"  ❌ Errori:     {self.stats['skills']['errors']}")
+        print(f"\nSKILLS:")
+        print(f"  [OK] Importate:     {self.stats['skills']['imported']}")
+        print(f"  [SKIP] Saltate:     {self.stats['skills']['skipped']}")
+        print(f"  [ERROR] Errori:     {self.stats['skills']['errors']}")
 
-        print(f"\n🕐 TURNI:")
-        print(f"  ✓ Importati:  {self.stats['turni']['imported']}")
-        print(f"  ⏭️  Saltati:    {self.stats['turni']['skipped']}")
-        print(f"  ❌ Errori:     {self.stats['turni']['errors']}")
+        print(f"\nTURNI:")
+        print(f"  [OK] Importati:     {self.stats['turni']['imported']}")
+        print(f"  [SKIP] Saltati:     {self.stats['turni']['skipped']}")
+        print(f"  [ERROR] Errori:     {self.stats['turni']['errors']}")
 
-        print(f"\n👥 OPERATORI:")
-        print(f"  ✓ Importati:  {self.stats['operatori']['imported']}")
-        print(f"  ↻ Aggiornati: {self.stats['operatori']['updated']}")
-        print(f"  ⏭️  Saltati:    {self.stats['operatori']['skipped']}")
-        print(f"  ❌ Errori:     {self.stats['operatori']['errors']}")
+        print(f"\nOPERATORI:")
+        print(f"  [OK] Importati:     {self.stats['operatori']['imported']}")
+        print(f"  [UPD] Aggiornati:   {self.stats['operatori']['updated']}")
+        print(f"  [SKIP] Saltati:     {self.stats['operatori']['skipped']}")
+        print(f"  [ERROR] Errori:     {self.stats['operatori']['errors']}")
 
         totale_ok = (
             self.stats['skills']['imported'] +
@@ -290,7 +290,7 @@ def main():
     file_path = sys.argv[1]
 
     if not Path(file_path).exists():
-        print(f"❌ File non trovato: {file_path}")
+        print(f"[ERROR] File non trovato: {file_path}")
         return 1
 
     # Crea importer

@@ -44,15 +44,15 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
 
     # Verifica file
     if not Path(excel_file).exists():
-        print(f"❌ File non trovato: {excel_file}")
+        print(f"[ERROR] File non trovato: {excel_file}")
         return False
 
     # Leggi Excel
     try:
         df = pd.read_excel(excel_file, sheet_name='Erlang_Config')
-        print(f"✓ File Excel letto: {len(df)} righe\n")
+        print(f"[OK] File Excel letto: {len(df)} righe\n")
     except Exception as e:
-        print(f"❌ Errore lettura file Excel: {e}")
+        print(f"[ERROR] Errore lettura file Excel: {e}")
         print("Assicurarsi che esista sheet 'Erlang_Config'")
         return False
 
@@ -63,7 +63,7 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
     missing_cols = [col for col in required_cols if col not in df.columns]
 
     if missing_cols:
-        print(f"❌ Colonne mancanti: {', '.join(missing_cols)}")
+        print(f"[ERROR] Colonne mancanti: {', '.join(missing_cols)}")
         print(f"Colonne trovate: {', '.join(df.columns)}")
         return False
 
@@ -115,22 +115,22 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
 
                 # Validazioni
                 if aht_seconds <= 0:
-                    print(f"  ⚠️  Riga {idx+2}: AHT deve essere > 0, skip")
+                    print(f"  [WARN] Riga {idx+2}: AHT deve essere > 0, skip")
                     skipped += 1
                     continue
 
                 if not (0 <= shrinkage <= 1):
-                    print(f"  ⚠️  Riga {idx+2}: Shrinkage deve essere tra 0 e 1, skip")
+                    print(f"  [WARN] Riga {idx+2}: Shrinkage deve essere tra 0 e 1, skip")
                     skipped += 1
                     continue
 
                 if not (0 <= sl_target <= 1):
-                    print(f"  ⚠️  Riga {idx+2}: Service Level Target deve essere tra 0 e 1, skip")
+                    print(f"  [WARN] Riga {idx+2}: Service Level Target deve essere tra 0 e 1, skip")
                     skipped += 1
                     continue
 
                 if concurrency < 1:
-                    print(f"  ⚠️  Riga {idx+2}: Concurrency deve essere almeno 1, skip")
+                    print(f"  [WARN] Riga {idx+2}: Concurrency deve essere almeno 1, skip")
                     skipped += 1
                     continue
 
@@ -158,7 +158,7 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                         occupancy, interval, note, skill
                     ))
 
-                    print(f"  ↻ '{skill}': Configurazione aggiornata")
+                    print(f"  [UPD] '{skill}': Configurazione aggiornata")
                     if tipo_canale == 'Chat':
                         print(f"      {tipo_canale}, AHT={aht_seconds}s, Concurr={concurrency}, Shrinkage={shrinkage*100}%, ASA={asa_seconds}s")
                     else:
@@ -183,7 +183,7 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                         occupancy, interval, note
                     ))
 
-                    print(f"  ✓ '{skill}': Nuova configurazione")
+                    print(f"  [OK] '{skill}': Nuova configurazione")
                     if tipo_canale == 'Chat':
                         print(f"      {tipo_canale}, AHT={aht_seconds}s, Concurr={concurrency}, Shrinkage={shrinkage*100}%, ASA={asa_seconds}s")
                     else:
@@ -191,11 +191,11 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                     imported += 1
 
             except ValueError as e:
-                print(f"  ❌ Riga {idx+2}: Valore numerico invalido - {e}")
+                print(f"  [ERROR] Riga {idx+2}: Valore numerico invalido - {e}")
                 errors += 1
                 continue
             except Exception as e:
-                print(f"  ❌ Riga {idx+2}: Errore - {e}")
+                print(f"  [ERROR] Riga {idx+2}: Errore - {e}")
                 errors += 1
                 continue
 
@@ -203,20 +203,20 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
         print(f"\n{'='*70}")
         print(f"  RIEPILOGO IMPORT")
         print(f"{'='*70}")
-        print(f"✓ Importate (nuove):     {imported}")
-        print(f"↻ Aggiornate:            {updated}")
-        print(f"⏭️  Saltate:              {skipped}")
-        print(f"❌ Errori:                {errors}")
+        print(f"[OK] Importate (nuove):     {imported}")
+        print(f"[UPD] Aggiornate:           {updated}")
+        print(f"[SKIP] Saltate:             {skipped}")
+        print(f"[ERROR] Errori:             {errors}")
 
         total_configs = config_esistenti - updated + imported
-        print(f"📊 Totale configurazioni: {total_configs}")
+        print(f"[INFO] Totale configurazioni: {total_configs}")
         print(f"{'='*70}\n")
 
         db_manager.close()
         return errors == 0
 
     except Exception as e:
-        print(f"❌ Errore database: {e}")
+        print(f"[ERROR] Errore database: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -263,7 +263,7 @@ def list_current_configs(db_path='data/operator_overtime.db'):
         db_manager.close()
 
     except Exception as e:
-        print(f"❌ Errore: {e}")
+        print(f"[ERROR] Errore: {e}")
 
 
 if __name__ == '__main__':
@@ -300,7 +300,7 @@ if __name__ == '__main__':
     excel_file = sys.argv[1]
 
     if not os.path.exists(excel_file):
-        print(f"❌ File non trovato: {excel_file}")
+        print(f"[ERROR] File non trovato: {excel_file}")
         sys.exit(1)
 
     success = import_erlang_config(excel_file, db_path)
