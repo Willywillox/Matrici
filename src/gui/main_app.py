@@ -412,8 +412,9 @@ class MatriciApp:
                 script_path = os.path.join(os.path.dirname(__file__), '..', '..',
                                           'scripts', 'import_excel_operatori.py')
 
+                # Specifica il foglio "Operatori" per supportare template_import_completo.xlsx
                 process = subprocess.Popen(
-                    [sys.executable, script_path, '--file', file_path],
+                    [sys.executable, script_path, '--file', file_path, '--sheet', 'Operatori'],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
@@ -430,10 +431,10 @@ class MatriciApp:
 
                 # Risultato finale
                 if process.returncode == 0:
-                    output_text.insert('end', "\n✓ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.insert('end', "\n[OK] IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
                     output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
                 else:
-                    output_text.insert('end', "\n✗ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.insert('end', "\n[ERROR] Import completato con errori. Verifica sopra.\n", 'error')
                     output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
 
                 output_text.see('end')
@@ -445,7 +446,7 @@ class MatriciApp:
                 self.refresh_operatori()
 
             except Exception as e:
-                output_text.insert('end', f"\n✗ ERRORE: {str(e)}\n", 'error')
+                output_text.insert('end', f"\n[ERROR] ERRORE: {str(e)}\n", 'error')
                 output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
                 close_btn.config(state='normal')
 
