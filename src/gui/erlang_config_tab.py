@@ -281,12 +281,16 @@ class ErlangConfigDialog(tk.Toplevel):
         skill_frame.grid(row=row, column=1, sticky='w', pady=5)
 
         self.vars['skill'] = tk.StringVar()
+
+        # Debug: stampa cosa viene passato al Combobox
+        print(f"[DEBUG] Creazione Combobox con {len(self.available_skills)} skills: {self.available_skills}")
+
         skill_combo = ttk.Combobox(skill_frame, textvariable=self.vars['skill'],
-                                    values=self.available_skills, width=37)
+                                    values=self.available_skills, width=37, state='normal')
         skill_combo.pack(side='left')
 
         if self.mode == 'edit':
-            skill_combo.config(state='readonly')  # Skill non modificabile
+            skill_combo.config(state='readonly')  # Skill non modificabile in edit
         elif self.available_skills:
             skill_combo.current(0)  # Seleziona primo skill di default
 
@@ -513,27 +517,51 @@ class ErlangConfigDialog(tk.Toplevel):
             self.asa_label.config(foreground='#CCC')
 
     def _load_skills(self):
-        """Carica elenco skills dal database"""
+        """Carica elenco skills dal database (sia da Skills che da Erlang_Config)"""
+        skills_set = set()
+
         try:
             self.db_manager.connect()
 
-            result = self.db_manager.execute_query("""
-                SELECT DISTINCT Codice_Skill
-                FROM Skills
-                ORDER BY Codice_Skill
-            """)
+            # Prova a caricare dalla tabella Skills
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Codice_Skill
+                    FROM Skills
+                    ORDER BY Codice_Skill
+                """)
 
-            if result:
-                self.available_skills = [row[0] for row in result]
-                print(f"[DEBUG] Caricati {len(self.available_skills)} skills: {self.available_skills}")
-            else:
-                self.available_skills = []
-                print("[DEBUG] Nessuno skill trovato nella tabella Skills")
+                if result:
+                    skills_from_table = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_table)
+                    print(f"[DEBUG] Caricati {len(skills_from_table)} skills dalla tabella Skills")
+                else:
+                    print("[DEBUG] Tabella Skills vuota")
+            except Exception as e:
+                print(f"[DEBUG] Tabella Skills non disponibile: {e}")
+
+            # Carica anche gli skills già configurati in Erlang_Config
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Skill
+                    FROM Erlang_Config
+                    ORDER BY Skill
+                """)
+
+                if result:
+                    skills_from_erlang = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_erlang)
+                    print(f"[DEBUG] Caricati {len(skills_from_erlang)} skills da Erlang_Config")
+            except Exception as e:
+                print(f"[DEBUG] Nessuno skill in Erlang_Config: {e}")
 
             self.db_manager.close()
 
+            # Converti set in lista ordinata
+            self.available_skills = sorted(list(skills_set))
+            print(f"[DEBUG] Totale skills disponibili: {len(self.available_skills)} - {self.available_skills}")
+
         except Exception as e:
-            # Se non ci sono skills o errore, lista vuota
             self.available_skills = []
             print(f"[ERRORE] Impossibile caricare skills: {e}")
             import traceback
