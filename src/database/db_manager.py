@@ -21,6 +21,8 @@ class DatabaseManager:
         try:
             if self.is_sqlite:
                 self.conn = sqlite3.connect(self.db_path)
+                # Configura row_factory per accedere alle colonne per nome
+                self.conn.row_factory = sqlite3.Row
             else:
                 conn_str = (
                     r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'

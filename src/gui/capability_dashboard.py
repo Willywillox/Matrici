@@ -476,9 +476,16 @@ Operatori in Produzione: {in_prod}
 
     def _row_to_dict(self, row):
         """Converte row database in dict"""
+        # pyodbc.Row (Access)
         if hasattr(row, 'cursor_description'):
             return {desc[0]: getattr(row, desc[0]) for desc in row.cursor_description}
-        return {}
+        # sqlite3.Row
+        elif hasattr(row, 'keys'):
+            return {key: row[key] for key in row.keys()}
+        # Fallback per tuple/liste (non dovrebbe succedere con row_factory)
+        else:
+            print("[WARN] Row senza metadati, ritorno dict vuoto")
+            return {}
 
     def _parse_time(self, value):
         """Parse time value"""
