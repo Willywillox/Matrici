@@ -251,49 +251,112 @@ class CapabilityDashboard(ttk.Frame):
             # Carica operatori
             self.db_manager.connect()
 
-            # Se "Tutte le date" è selezionata, carica tutti gli operatori
+            # Se "Tutte le date" è selezionata, carica tutti gli operatori e calcola per ogni data
             if self.all_dates_var.get():
                 operatori_data = self.db_manager.get_operatori(None)  # Tutti gli operatori
-            else:
-                operatori_data = self.db_manager.get_operatori(data.strftime('%Y-%m-%d'))
 
-            if not operatori_data:
-                if self.all_dates_var.get():
+                if not operatori_data:
                     messagebox.showinfo("Info", "Nessun operatore trovato nel database.\n\n"
                                                "Inserire operatori nella sezione Anagrafica.")
+                    self.db_manager.close()
+                    return
+
+                # Estrai date uniche dagli operatori
+                date_uniche = set()
+                for row in operatori_data:
+                    op_dict = self._row_to_dict(row)
+                    data_rif = op_dict.get('Data_Riferimento')
+                    if isinstance(data_rif, str):
+                        data_rif = datetime.strptime(data_rif, '%Y-%m-%d')
+                    if data_rif:
+                        date_uniche.add(data_rif.date() if isinstance(data_rif, datetime) else data_rif)
+
+                # Calcola capability per ogni data
+                all_dataframes = []
+
+                for data_corrente in sorted(date_uniche):
+                    # Converti a datetime
+                    if not isinstance(data_corrente, datetime):
+                        data_corrente = datetime.combine(data_corrente, datetime.min.time())
+
+                    # Filtra operatori per questa data
+                    operatori = []
+                    for row in operatori_data:
+                        op_dict = self._row_to_dict(row)
+                        data_op = op_dict.get('Data_Riferimento')
+                        if isinstance(data_op, str):
+                            data_op = datetime.strptime(data_op, '%Y-%m-%d')
+
+                        if data_op and data_op.date() == data_corrente.date():
+                            op = Operatore(**op_dict)
+
+                            # Carica cambi skill
+                            cambi = self.db_manager.get_cambi_skill(op.id_sap, data_corrente.strftime('%Y-%m-%d'))
+                            for cambio in cambi:
+                                cambio_dict = self._row_to_dict(cambio)
+                                op.cambi_skill.append({
+                                    'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
+                                    'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
+                                    'skill': cambio_dict.get('Skill_Temporaneo')
+                                })
+
+                            operatori.append(op)
+
+                    if operatori:
+                        # Carica forecast per questa data
+                        forecast_data = self.db_manager.get_forecast(data_corrente.strftime('%Y-%m-%d'))
+                        forecast = [self._row_to_dict(row) for row in forecast_data]
+
+                        # Calcola capability
+                        calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
+                        df_day = calculator.calcola_capability_per_fascia(data_corrente, intervallo)
+                        all_dataframes.append(df_day)
+
+                self.db_manager.close()
+
+                # Concatena tutti i dataframe
+                if all_dataframes:
+                    df_capability = pd.concat(all_dataframes, ignore_index=True)
                 else:
+                    df_capability = pd.DataFrame()
+
+            else:
+                # Modalità data singola (comportamento originale)
+                operatori_data = self.db_manager.get_operatori(data.strftime('%Y-%m-%d'))
+
+                if not operatori_data:
                     messagebox.showinfo("Info", f"Nessun operatore trovato per la data {self.date_var.get()}.\n\n"
                                                "Prova a selezionare 'Tutte le date' o inserire operatori per questa data.")
+                    self.db_manager.close()
+                    return
+
+                # Crea oggetti Operatore
+                operatori = []
+                for row in operatori_data:
+                    op_dict = self._row_to_dict(row)
+                    op = Operatore(**op_dict)
+
+                    # Carica cambi skill
+                    cambi = self.db_manager.get_cambi_skill(op.id_sap, data.strftime('%Y-%m-%d'))
+                    for cambio in cambi:
+                        cambio_dict = self._row_to_dict(cambio)
+                        op.cambi_skill.append({
+                            'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
+                            'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
+                            'skill': cambio_dict.get('Skill_Temporaneo')
+                        })
+
+                    operatori.append(op)
+
+                # Carica forecast
+                forecast_data = self.db_manager.get_forecast(data.strftime('%Y-%m-%d'))
+                forecast = [self._row_to_dict(row) for row in forecast_data]
+
                 self.db_manager.close()
-                return
 
-            # Crea oggetti Operatore
-            operatori = []
-            for row in operatori_data:
-                op_dict = self._row_to_dict(row)
-                op = Operatore(**op_dict)
-
-                # Carica cambi skill
-                cambi = self.db_manager.get_cambi_skill(op.id_sap, data.strftime('%Y-%m-%d'))
-                for cambio in cambi:
-                    cambio_dict = self._row_to_dict(cambio)
-                    op.cambi_skill.append({
-                        'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
-                        'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
-                        'skill': cambio_dict.get('Skill_Temporaneo')
-                    })
-
-                operatori.append(op)
-
-            # Carica forecast
-            forecast_data = self.db_manager.get_forecast(data.strftime('%Y-%m-%d'))
-            forecast = [self._row_to_dict(row) for row in forecast_data]
-
-            self.db_manager.close()
-
-            # Calcola capability (passa db_manager per Erlang C)
-            calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
-            df_capability = calculator.calcola_capability_per_fascia(data, intervallo)
+                # Calcola capability (passa db_manager per Erlang C)
+                calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
+                df_capability = calculator.calcola_capability_per_fascia(data, intervallo)
 
             # Salva per export
             self.current_data = df_capability

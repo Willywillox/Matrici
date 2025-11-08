@@ -88,6 +88,12 @@ class Operatore:
 
     def is_presente(self, orario: time) -> bool:
         """Verifica se l'operatore è presente all'orario specificato"""
+        # Riconosce giorno di riposo: se turno è 00:00-00:00, l'operatore non è presente
+        if self.ora_inizio_turno and self.ora_fine_turno:
+            if (self.ora_inizio_turno == time(0, 0, 0) and
+                self.ora_fine_turno == time(0, 0, 0)):
+                return False
+
         # Controlla giustificativi (assenze totali)
         for giust in self.giustificativi:
             if giust['tipo'].lower() in ['assenza', 'ferie', 'malattia', 'permesso']:
