@@ -277,14 +277,24 @@ class ErlangConfigDialog(tk.Toplevel):
 
         # Skill
         ttk.Label(form, text="Skill/Coda:*").grid(row=row, column=0, sticky='w', pady=5)
+        skill_frame = ttk.Frame(form)
+        skill_frame.grid(row=row, column=1, sticky='w', pady=5)
+
         self.vars['skill'] = tk.StringVar()
-        skill_combo = ttk.Combobox(form, textvariable=self.vars['skill'],
+        skill_combo = ttk.Combobox(skill_frame, textvariable=self.vars['skill'],
                                     values=self.available_skills, width=37)
-        skill_combo.grid(row=row, column=1, sticky='w', pady=5)
+        skill_combo.pack(side='left')
+
         if self.mode == 'edit':
             skill_combo.config(state='readonly')  # Skill non modificabile
         elif self.available_skills:
             skill_combo.current(0)  # Seleziona primo skill di default
+
+        # Etichetta informativa
+        if not self.available_skills and self.mode == 'add':
+            ttk.Label(skill_frame, text="  ⚠️ Digita manualmente (Skills vuoto)",
+                     foreground='#FF9800', font=('Arial', 8)).pack(side='left', padx=5)
+
         row += 1
 
         # Tipo Canale
@@ -515,13 +525,19 @@ class ErlangConfigDialog(tk.Toplevel):
 
             if result:
                 self.available_skills = [row[0] for row in result]
+                print(f"[DEBUG] Caricati {len(self.available_skills)} skills: {self.available_skills}")
+            else:
+                self.available_skills = []
+                print("[DEBUG] Nessuno skill trovato nella tabella Skills")
 
             self.db_manager.close()
 
         except Exception as e:
             # Se non ci sono skills o errore, lista vuota
             self.available_skills = []
-            print(f"Avviso: impossibile caricare skills: {e}")
+            print(f"[ERRORE] Impossibile caricare skills: {e}")
+            import traceback
+            traceback.print_exc()
 
     def load_config(self):
         """Carica configurazione esistente"""
