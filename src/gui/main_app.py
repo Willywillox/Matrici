@@ -202,6 +202,13 @@ class MatriciApp:
                                            width=12, date_pattern='dd/mm/yyyy')
         self.filter_date_entry.pack(side='left', padx=5)
 
+        # Checkbox "Tutte le date"
+        self.filter_all_dates_var = tk.BooleanVar(value=False)
+        all_dates_check = ttk.Checkbutton(filter_frame, text="Tutte le date",
+                                          variable=self.filter_all_dates_var,
+                                          command=self.toggle_date_filter)
+        all_dates_check.pack(side='left', padx=5)
+
         ttk.Label(filter_frame, text="Skill:").pack(side='left', padx=(20, 5))
         self.filter_skill_var = tk.StringVar(value='Tutte')
         ttk.Combobox(filter_frame, textvariable=self.filter_skill_var,
@@ -480,21 +487,35 @@ class MatriciApp:
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nell'eliminazione:\n{e}")
 
+    def toggle_date_filter(self):
+        """Abilita/disabilita il filtro data quando la checkbox 'Tutte le date' viene selezionata"""
+        if self.filter_all_dates_var.get():
+            # Checkbox selezionata: disabilita il DateEntry
+            self.filter_date_entry.config(state='disabled')
+        else:
+            # Checkbox deselezionata: abilita il DateEntry
+            self.filter_date_entry.config(state='normal')
+        # Aggiorna la lista
+        self.refresh_operatori()
+
     def refresh_operatori(self):
         """Ricarica lista operatori"""
         try:
             self.db_manager.connect()
 
             # Filtri
-            data_filtro_str = self.filter_date_var.get() if hasattr(self, 'filter_date_var') else None
-            # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
             data_filtro = None
-            if data_filtro_str:
-                try:
-                    data_obj = datetime.strptime(data_filtro_str, '%d/%m/%Y')
-                    data_filtro = data_obj.strftime('%Y-%m-%d')
-                except:
-                    data_filtro = None
+
+            # Se "Tutte le date" NON è selezionata, applica il filtro data
+            if not (hasattr(self, 'filter_all_dates_var') and self.filter_all_dates_var.get()):
+                data_filtro_str = self.filter_date_var.get() if hasattr(self, 'filter_date_var') else None
+                # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+                if data_filtro_str:
+                    try:
+                        data_obj = datetime.strptime(data_filtro_str, '%d/%m/%Y')
+                        data_filtro = data_obj.strftime('%Y-%m-%d')
+                    except:
+                        data_filtro = None
             operatori = self.db_manager.get_operatori(data_filtro)
 
             # Filtro di ricerca globale
