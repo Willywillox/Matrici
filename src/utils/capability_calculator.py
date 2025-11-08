@@ -292,6 +292,16 @@ class CapabilityCalculator:
             axis=1
         )
 
+        # Calcola Gestibile Chiamate (numero di chiamate che possono essere gestite)
+        df_merged['Gestibile_Chiamate'] = df_merged.apply(
+            lambda row: self._calculate_gestibile_chiamate(
+                row['Skill'],
+                row['In_Produzione'],
+                row.get('Produttivita_Target', 1.0)
+            ),
+            axis=1
+        )
+
         return df_merged
 
     def _calculate_required_fte_erlang(self, skill: str, volumi: float, fallback_fte: float) -> float:
@@ -365,6 +375,51 @@ class CapabilityCalculator:
         else:
             # Senza configurazione, approssima
             return math.ceil(fte_richiesti)
+
+    def _calculate_gestibile_chiamate(self, skill: str, operatori_produzione: int, produttivita_target: float) -> int:
+        """
+        Calcola il numero di chiamate gestibili dagli operatori in produzione
+
+        Args:
+            skill: Nome dello skill
+            operatori_produzione: Numero di operatori in produzione
+            produttivita_target: Produttività target dal forecast (chiamate/ora per operatore)
+
+        Returns:
+            Numero totale di chiamate gestibili nella fascia oraria
+        """
+        if operatori_produzione <= 0:
+            return 0
+
+        # Usa produttività da configurazione Erlang se disponibile, altrimenti usa quella del forecast
+        if skill in self.erlang_configs:
+            config = self.erlang_configs[skill]
+            aht_seconds = config.get('aht_seconds', 180)  # Default 3 minuti
+            interval_minutes = config.get('interval_minutes', 15)
+
+            # Calcola produttività oraria da AHT
+            # AHT in secondi -> Chiamate all'ora = 3600 / AHT
+            chiamate_ora_per_operatore = 3600.0 / aht_seconds if aht_seconds > 0 else 20.0
+
+            # Frazione di ora per questa fascia
+            frazione_ora = interval_minutes / 60.0
+
+            # Chiamate gestibili = Operatori * Chiamate/ora * Frazione_ora
+            chiamate_gestibili = operatori_produzione * chiamate_ora_per_operatore * frazione_ora
+        else:
+            # Usa produttività dal forecast o default
+            # Assumiamo che produttivita_target sia chiamate/ora se > 1, altrimenti un fattore
+            if produttivita_target > 1:
+                chiamate_ora_per_operatore = produttivita_target
+            else:
+                chiamate_ora_per_operatore = 20.0  # Default: 20 chiamate/ora (3 min AHT)
+
+            # Assumiamo fascia di 15 minuti se non abbiamo config
+            frazione_ora = 15 / 60.0
+
+            chiamate_gestibili = operatori_produzione * chiamate_ora_per_operatore * frazione_ora
+
+        return int(round(chiamate_gestibili))
 
     def calcola_rendiconto_per_servizio(
         self,

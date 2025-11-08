@@ -45,15 +45,21 @@ class CapabilityDashboard(ttk.Frame):
         control_frame = ttk.LabelFrame(self, text="Filtri e Opzioni", padding=10)
         control_frame.pack(fill='x', padx=10, pady=10)
 
-        # Row 1: Data e intervallo
+        # Row 1: Intervallo date
         row1 = ttk.Frame(control_frame)
         row1.pack(fill='x', pady=5)
 
-        ttk.Label(row1, text="Data:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
-        self.date_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
-        self.date_entry = DateEntry(row1, textvariable=self.date_var, width=12,
-                                     date_pattern='dd/mm/yyyy')
-        self.date_entry.pack(side='left', padx=5)
+        ttk.Label(row1, text="Da:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
+        self.date_start_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
+        self.date_start_entry = DateEntry(row1, textvariable=self.date_start_var, width=12,
+                                           date_pattern='dd/mm/yyyy')
+        self.date_start_entry.pack(side='left', padx=5)
+
+        ttk.Label(row1, text="A:", font=('Arial', 10, 'bold')).pack(side='left', padx=(10, 5))
+        self.date_end_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
+        self.date_end_entry = DateEntry(row1, textvariable=self.date_end_var, width=12,
+                                         date_pattern='dd/mm/yyyy')
+        self.date_end_entry.pack(side='left', padx=5)
 
         # Checkbox "Tutte le date"
         self.all_dates_var = tk.BooleanVar(value=False)
@@ -125,7 +131,7 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview - colonne dinamiche con giustificativi
         base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
-        base_columns_after = ['FTE Eff.', 'FTE Rich.', 'Richiesto', 'Delta', 'Copertura %', 'Stato']
+        base_columns_after = ['FTE Eff.', 'FTE Rich.', 'Richiesto', 'Gest. Chiam.', 'Delta', 'Copertura %', 'Stato']
 
         # Inserisci colonne giustificativi tra In Strao e FTE Eff.
         columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
@@ -149,6 +155,7 @@ class CapabilityDashboard(ttk.Frame):
             'FTE Eff.': 70,
             'FTE Rich.': 80,
             'Richiesto': 80,
+            'Gest. Chiam.': 90,
             'Delta': 70,
             'Copertura %': 90,
             'Stato': 100
@@ -195,11 +202,13 @@ class CapabilityDashboard(ttk.Frame):
     def toggle_date_filter(self):
         """Abilita/disabilita il filtro data quando la checkbox 'Tutte le date' viene selezionata"""
         if self.all_dates_var.get():
-            # Checkbox selezionata: disabilita il DateEntry
-            self.date_entry.config(state='disabled')
+            # Checkbox selezionata: disabilita i DateEntry
+            self.date_start_entry.config(state='disabled')
+            self.date_end_entry.config(state='disabled')
         else:
-            # Checkbox deselezionata: abilita il DateEntry
-            self.date_entry.config(state='normal')
+            # Checkbox deselezionata: abilita i DateEntry
+            self.date_start_entry.config(state='normal')
+            self.date_end_entry.config(state='normal')
 
     def load_skills(self):
         """Carica lista skill dal database"""
@@ -245,118 +254,107 @@ class CapabilityDashboard(ttk.Frame):
             from utils.capability_calculator import CapabilityCalculator
 
             # Parse parametri (da formato italiano dd/mm/yyyy)
-            data = datetime.strptime(self.date_var.get(), '%d/%m/%Y')
+            data_inizio = datetime.strptime(self.date_start_var.get(), '%d/%m/%Y')
+            data_fine = datetime.strptime(self.date_end_var.get(), '%d/%m/%Y')
             intervallo = int(self.interval_var.get())
+
+            # Verifica intervallo valido
+            if data_fine < data_inizio:
+                messagebox.showwarning("Attenzione", "La data fine deve essere >= data inizio")
+                return
 
             # Carica operatori
             self.db_manager.connect()
 
-            # Se "Tutte le date" è selezionata, carica tutti gli operatori e calcola per ogni data
+            # Logica di caricamento dati
             if self.all_dates_var.get():
-                operatori_data = self.db_manager.get_operatori(None)  # Tutti gli operatori
-
-                if not operatori_data:
-                    messagebox.showinfo("Info", "Nessun operatore trovato nel database.\n\n"
-                                               "Inserire operatori nella sezione Anagrafica.")
-                    self.db_manager.close()
-                    return
-
-                # Estrai date uniche dagli operatori
-                date_uniche = set()
-                for row in operatori_data:
-                    op_dict = self._row_to_dict(row)
-                    data_rif = op_dict.get('Data_Riferimento')
-                    if isinstance(data_rif, str):
-                        data_rif = datetime.strptime(data_rif, '%Y-%m-%d')
-                    if data_rif:
-                        date_uniche.add(data_rif.date() if isinstance(data_rif, datetime) else data_rif)
-
-                # Calcola capability per ogni data
-                all_dataframes = []
-
-                for data_corrente in sorted(date_uniche):
-                    # Converti a datetime
-                    if not isinstance(data_corrente, datetime):
-                        data_corrente = datetime.combine(data_corrente, datetime.min.time())
-
-                    # Filtra operatori per questa data
-                    operatori = []
-                    for row in operatori_data:
-                        op_dict = self._row_to_dict(row)
-                        data_op = op_dict.get('Data_Riferimento')
-                        if isinstance(data_op, str):
-                            data_op = datetime.strptime(data_op, '%Y-%m-%d')
-
-                        if data_op and data_op.date() == data_corrente.date():
-                            op = Operatore(**op_dict)
-
-                            # Carica cambi skill
-                            cambi = self.db_manager.get_cambi_skill(op.id_sap, data_corrente.strftime('%Y-%m-%d'))
-                            for cambio in cambi:
-                                cambio_dict = self._row_to_dict(cambio)
-                                op.cambi_skill.append({
-                                    'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
-                                    'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
-                                    'skill': cambio_dict.get('Skill_Temporaneo')
-                                })
-
-                            operatori.append(op)
-
-                    if operatori:
-                        # Carica forecast per questa data
-                        forecast_data = self.db_manager.get_forecast(data_corrente.strftime('%Y-%m-%d'))
-                        forecast = [self._row_to_dict(row) for row in forecast_data]
-
-                        # Calcola capability
-                        calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
-                        df_day = calculator.calcola_capability_per_fascia(data_corrente, intervallo)
-                        all_dataframes.append(df_day)
-
-                self.db_manager.close()
-
-                # Concatena tutti i dataframe
-                if all_dataframes:
-                    df_capability = pd.concat(all_dataframes, ignore_index=True)
-                else:
-                    df_capability = pd.DataFrame()
-
+                # Tutte le date: carica tutti gli operatori
+                operatori_data = self.db_manager.get_operatori(None)
             else:
-                # Modalità data singola (comportamento originale)
-                operatori_data = self.db_manager.get_operatori(data.strftime('%Y-%m-%d'))
+                # Intervallo specifico: carica solo operatori nell'intervallo
+                # Carica tutti e poi filtra (db_manager.get_operatori non supporta range)
+                operatori_data = self.db_manager.get_operatori(None)
 
-                if not operatori_data:
-                    messagebox.showinfo("Info", f"Nessun operatore trovato per la data {self.date_var.get()}.\n\n"
-                                               "Prova a selezionare 'Tutte le date' o inserire operatori per questa data.")
-                    self.db_manager.close()
-                    return
+            if not operatori_data:
+                messagebox.showinfo("Info", "Nessun operatore trovato nel database.\n\n"
+                                           "Inserire operatori nella sezione Anagrafica.")
+                self.db_manager.close()
+                return
 
-                # Crea oggetti Operatore
+            # Estrai date uniche dagli operatori
+            date_uniche = set()
+            for row in operatori_data:
+                op_dict = self._row_to_dict(row)
+                data_rif = op_dict.get('Data_Riferimento')
+                if isinstance(data_rif, str):
+                    data_rif = datetime.strptime(data_rif, '%Y-%m-%d')
+                if data_rif:
+                    data_obj = data_rif.date() if isinstance(data_rif, datetime) else data_rif
+
+                    # Filtra per intervallo se non "Tutte le date"
+                    if not self.all_dates_var.get():
+                        if data_inizio.date() <= data_obj <= data_fine.date():
+                            date_uniche.add(data_obj)
+                    else:
+                        date_uniche.add(data_obj)
+
+            if not date_uniche:
+                if self.all_dates_var.get():
+                    msg = "Nessun operatore trovato nel database."
+                else:
+                    msg = f"Nessun operatore trovato nell'intervallo {self.date_start_var.get()} - {self.date_end_var.get()}."
+                messagebox.showinfo("Info", msg)
+                self.db_manager.close()
+                return
+
+            # Calcola capability per ogni data
+            all_dataframes = []
+
+            for data_corrente in sorted(date_uniche):
+                # Converti a datetime
+                if not isinstance(data_corrente, datetime):
+                    data_corrente = datetime.combine(data_corrente, datetime.min.time())
+
+                # Filtra operatori per questa data
                 operatori = []
                 for row in operatori_data:
                     op_dict = self._row_to_dict(row)
-                    op = Operatore(**op_dict)
+                    data_op = op_dict.get('Data_Riferimento')
+                    if isinstance(data_op, str):
+                        data_op = datetime.strptime(data_op, '%Y-%m-%d')
 
-                    # Carica cambi skill
-                    cambi = self.db_manager.get_cambi_skill(op.id_sap, data.strftime('%Y-%m-%d'))
-                    for cambio in cambi:
-                        cambio_dict = self._row_to_dict(cambio)
-                        op.cambi_skill.append({
-                            'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
-                            'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
-                            'skill': cambio_dict.get('Skill_Temporaneo')
-                        })
+                    if data_op and data_op.date() == data_corrente.date():
+                        op = Operatore(**op_dict)
 
-                    operatori.append(op)
+                        # Carica cambi skill
+                        cambi = self.db_manager.get_cambi_skill(op.id_sap, data_corrente.strftime('%Y-%m-%d'))
+                        for cambio in cambi:
+                            cambio_dict = self._row_to_dict(cambio)
+                            op.cambi_skill.append({
+                                'ora_inizio': self._parse_time(cambio_dict.get('Ora_Inizio')),
+                                'ora_fine': self._parse_time(cambio_dict.get('Ora_Fine')),
+                                'skill': cambio_dict.get('Skill_Temporaneo')
+                            })
 
-                # Carica forecast
-                forecast_data = self.db_manager.get_forecast(data.strftime('%Y-%m-%d'))
-                forecast = [self._row_to_dict(row) for row in forecast_data]
+                        operatori.append(op)
 
-                self.db_manager.close()
+                if operatori:
+                    # Carica forecast per questa data
+                    forecast_data = self.db_manager.get_forecast(data_corrente.strftime('%Y-%m-%d'))
+                    forecast = [self._row_to_dict(row) for row in forecast_data]
 
-                # Calcola capability (passa db_manager per Erlang C)
-                calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
-                df_capability = calculator.calcola_capability_per_fascia(data, intervallo)
+                    # Calcola capability
+                    calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
+                    df_day = calculator.calcola_capability_per_fascia(data_corrente, intervallo)
+                    all_dataframes.append(df_day)
+
+            self.db_manager.close()
+
+            # Concatena tutti i dataframe
+            if all_dataframes:
+                df_capability = pd.concat(all_dataframes, ignore_index=True)
+            else:
+                df_capability = pd.DataFrame()
 
             # Salva per export
             self.current_data = df_capability
@@ -418,6 +416,12 @@ class CapabilityDashboard(ttk.Frame):
                     agenti_richiesti = 0
                 agenti_richiesti = int(agenti_richiesti)
 
+                # Gestibile chiamate
+                gestibile_chiamate = row.get('Gestibile_Chiamate', 0)
+                if gestibile_chiamate is None or pd.isna(gestibile_chiamate):
+                    gestibile_chiamate = 0
+                gestibile_chiamate = int(gestibile_chiamate)
+
                 delta = row.get('Delta_FTE', 0)
                 if delta is None or pd.isna(delta):
                     delta = 0
@@ -439,7 +443,7 @@ class CapabilityDashboard(ttk.Frame):
 
                 # Costruisci valori dinamicamente includendo giustificativi
                 # Ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione, In Strao,
-                #         [Giustificativi...], FTE Eff., FTE Rich., Richiesto, Delta, Copertura %, Stato
+                #         [Giustificativi...], FTE Eff., FTE Rich., Richiesto, Gest. Chiam., Delta, Copertura %, Stato
                 values_list = [
                     data, fascia, skill, presenti, in_pausa, in_prod, in_strao
                 ]
@@ -453,7 +457,7 @@ class CapabilityDashboard(ttk.Frame):
 
                 # Aggiungi valori finali
                 values_list.extend([
-                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", agenti_richiesti,
+                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", agenti_richiesti, gestibile_chiamate,
                     f"{delta:+.1f}", f"{copertura:.0f}%", stato
                 ])
 
