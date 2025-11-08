@@ -40,7 +40,7 @@ class CapabilityCalculator:
 
             result = self.db_manager.execute_query("""
                 SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
-                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       Shrinkage, Produttivita, Service_Level_Target, Service_Level_Seconds,
                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes
                 FROM Erlang_Config
             """)
@@ -54,11 +54,12 @@ class CapabilityCalculator:
                         'concurrency': row[3],
                         'tempo_pausa_minuti': row[4],
                         'shrinkage': row[5],
-                        'service_level_target': row[6],
-                        'service_level_seconds': row[7],
-                        'asa_target_seconds': row[8],
-                        'occupancy_target': row[9],
-                        'interval_minutes': row[10]
+                        'produttivita': row[6],
+                        'service_level_target': row[7],
+                        'service_level_seconds': row[8],
+                        'asa_target_seconds': row[9],
+                        'occupancy_target': row[10],
+                        'interval_minutes': row[11]
                     }
 
         except Exception as e:
@@ -302,6 +303,13 @@ class CapabilityCalculator:
                 row['In_Produzione'],
                 row.get('Produttivita_Target', 1.0)
             ),
+            axis=1
+        )
+
+        # Calcola Capability (%): (Gestibile_Chiamate / Volumi_Attesi) × 100
+        df_merged['Capability_%'] = df_merged.apply(
+            lambda row: (row['Gestibile_Chiamate'] / row['Volumi_Attesi'] * 100)
+            if row['Volumi_Attesi'] > 0 else 0,
             axis=1
         )
 

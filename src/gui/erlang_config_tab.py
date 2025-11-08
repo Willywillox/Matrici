@@ -53,7 +53,7 @@ class ErlangConfigTab(ttk.Frame):
 
         # Colonne
         columns = (
-            'ID', 'Skill', 'Canale', 'AHT(s)', 'Concurr.', 'Shrink%',
+            'ID', 'Skill', 'Canale', 'AHT(s)', 'Concurr.', 'Shrink%', 'Prod%',
             'SL%', 'SL(s)', 'ASA(s)', 'Occ%', 'Interval', 'Note'
         )
 
@@ -72,6 +72,7 @@ class ErlangConfigTab(ttk.Frame):
             'AHT(s)': 70,
             'Concurr.': 80,
             'Shrink%': 70,
+            'Prod%': 70,
             'SL%': 60,
             'SL(s)': 60,
             'ASA(s)': 70,
@@ -110,7 +111,7 @@ class ErlangConfigTab(ttk.Frame):
 
             configs = self.db_manager.execute_query("""
                 SELECT ID, Skill, Tipo_Canale, AHT_Seconds, Concurrency,
-                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       Shrinkage, Produttivita, Service_Level_Target, Service_Level_Seconds,
                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
                 FROM Erlang_Config
                 ORDER BY Skill
@@ -118,11 +119,12 @@ class ErlangConfigTab(ttk.Frame):
 
             if configs:
                 for cfg in configs:
-                    config_id, skill, tipo_canale, aht, concurrency, shrinkage, \
+                    config_id, skill, tipo_canale, aht, concurrency, shrinkage, produttivita, \
                     sl_target, sl_seconds, asa_seconds, occ_target, interval, note = cfg
 
                     # Formatta valori
                     shrink_pct = f"{shrinkage*100:.0f}%" if shrinkage else "0%"
+                    prod_pct = f"{produttivita*100:.0f}%" if produttivita else "100%"
                     sl_pct = f"{sl_target*100:.0f}%" if sl_target else "0%"
                     occ_pct = f"{occ_target*100:.0f}%" if occ_target else "0%"
 
@@ -133,6 +135,7 @@ class ErlangConfigTab(ttk.Frame):
                         aht or 180,
                         concurrency or 1,
                         shrink_pct,
+                        prod_pct,
                         sl_pct,
                         sl_seconds or 20,
                         asa_seconds or 60,
@@ -230,6 +233,8 @@ class ErlangConfigDialog(tk.Toplevel):
         self.geometry(f"700x750+{x}+{y}")
 
         self.vars = {}
+        self.available_skills = []
+        self._load_skills()
         self.setup_ui()
 
         if mode == 'edit' and config_id:
@@ -273,10 +278,13 @@ class ErlangConfigDialog(tk.Toplevel):
         # Skill
         ttk.Label(form, text="Skill/Coda:*").grid(row=row, column=0, sticky='w', pady=5)
         self.vars['skill'] = tk.StringVar()
-        skill_entry = ttk.Entry(form, textvariable=self.vars['skill'], width=40)
-        skill_entry.grid(row=row, column=1, sticky='w', pady=5)
+        skill_combo = ttk.Combobox(form, textvariable=self.vars['skill'],
+                                    values=self.available_skills, width=37)
+        skill_combo.grid(row=row, column=1, sticky='w', pady=5)
         if self.mode == 'edit':
-            skill_entry.config(state='readonly')  # Skill non modificabile
+            skill_combo.config(state='readonly')  # Skill non modificabile
+        elif self.available_skills:
+            skill_combo.current(0)  # Seleziona primo skill di default
         row += 1
 
         # Tipo Canale
@@ -328,6 +336,16 @@ class ErlangConfigDialog(tk.Toplevel):
         self.vars['shrinkage'] = tk.DoubleVar(value=30.0)
         ttk.Entry(shr_frame, textvariable=self.vars['shrinkage'], width=15).pack(side='left')
         ttk.Label(shr_frame, text="  (Tempo non produttivo - es: 30%)",
+                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+        row += 1
+
+        # Produttivita
+        ttk.Label(form, text="Produttività (%):*").grid(row=row, column=0, sticky='w', pady=5)
+        prod_frame = ttk.Frame(form)
+        prod_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['produttivita'] = tk.DoubleVar(value=100.0)
+        ttk.Entry(prod_frame, textvariable=self.vars['produttivita'], width=15).pack(side='left')
+        ttk.Label(prod_frame, text="  (Produttività target per skill - es: 100%)",
                  foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
         row += 1
 
@@ -484,6 +502,27 @@ class ErlangConfigDialog(tk.Toplevel):
             self.asa_entry.config(state='disabled')
             self.asa_label.config(foreground='#CCC')
 
+    def _load_skills(self):
+        """Carica elenco skills dal database"""
+        try:
+            self.db_manager.connect()
+
+            result = self.db_manager.execute_query("""
+                SELECT DISTINCT Codice_Skill
+                FROM Skills
+                ORDER BY Codice_Skill
+            """)
+
+            if result:
+                self.available_skills = [row[0] for row in result]
+
+            self.db_manager.close()
+
+        except Exception as e:
+            # Se non ci sono skills o errore, lista vuota
+            self.available_skills = []
+            print(f"Avviso: impossibile caricare skills: {e}")
+
     def load_config(self):
         """Carica configurazione esistente"""
         try:
@@ -491,7 +530,7 @@ class ErlangConfigDialog(tk.Toplevel):
 
             result = self.db_manager.execute_query("""
                 SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
-                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       Shrinkage, Produttivita, Service_Level_Target, Service_Level_Seconds,
                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
                 FROM Erlang_Config
                 WHERE ID = ?
@@ -504,12 +543,13 @@ class ErlangConfigDialog(tk.Toplevel):
                 self.vars['aht_seconds'].set(cfg[2] or 180)
                 self.vars['concurrency'].set(cfg[3] or 1)
                 self.vars['shrinkage'].set((cfg[5] * 100) if cfg[5] else 30.0)
-                self.vars['service_level_target'].set((cfg[6] * 100) if cfg[6] else 80.0)
-                self.vars['service_level_seconds'].set(cfg[7] or 20)
-                self.vars['asa_target_seconds'].set(cfg[8] or 60)
-                self.vars['occupancy_target'].set((cfg[9] * 100) if cfg[9] else 85.0)
-                self.vars['interval_minutes'].set(cfg[10] or 30)
-                self.vars['note'].set(cfg[11] or '')
+                self.vars['produttivita'].set((cfg[6] * 100) if cfg[6] else 100.0)
+                self.vars['service_level_target'].set((cfg[7] * 100) if cfg[7] else 80.0)
+                self.vars['service_level_seconds'].set(cfg[8] or 20)
+                self.vars['asa_target_seconds'].set(cfg[9] or 60)
+                self.vars['occupancy_target'].set((cfg[10] * 100) if cfg[10] else 85.0)
+                self.vars['interval_minutes'].set(cfg[11] or 30)
+                self.vars['note'].set(cfg[12] or '')
 
                 self.on_canale_change()
 
@@ -542,6 +582,11 @@ class ErlangConfigDialog(tk.Toplevel):
                 messagebox.showerror("Errore", "Shrinkage deve essere tra 0 e 99%")
                 return
 
+            produttivita = self.vars['produttivita'].get() / 100.0
+            if produttivita <= 0:
+                messagebox.showerror("Errore", "Produttività deve essere maggiore di 0")
+                return
+
             sl_target = self.vars['service_level_target'].get() / 100.0
             occ_target = self.vars['occupancy_target'].get() / 100.0
 
@@ -568,9 +613,9 @@ class ErlangConfigDialog(tk.Toplevel):
                 query = """
                     INSERT INTO Erlang_Config (
                         Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
-                        Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                        Shrinkage, Produttivita, Service_Level_Target, Service_Level_Seconds,
                         ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 params = (
                     skill,
@@ -579,6 +624,7 @@ class ErlangConfigDialog(tk.Toplevel):
                     self.vars['concurrency'].get(),
                     0,  # Tempo_Pausa_Minuti
                     shrinkage,
+                    produttivita,
                     sl_target,
                     self.vars['service_level_seconds'].get(),
                     self.vars['asa_target_seconds'].get(),
@@ -594,7 +640,7 @@ class ErlangConfigDialog(tk.Toplevel):
                 query = """
                     UPDATE Erlang_Config
                     SET Tipo_Canale = ?, AHT_Seconds = ?, Concurrency = ?,
-                        Shrinkage = ?, Service_Level_Target = ?, Service_Level_Seconds = ?,
+                        Shrinkage = ?, Produttivita = ?, Service_Level_Target = ?, Service_Level_Seconds = ?,
                         ASA_Target_Seconds = ?, Occupancy_Target = ?, Interval_Minutes = ?, Note = ?
                     WHERE ID = ?
                 """
@@ -603,6 +649,7 @@ class ErlangConfigDialog(tk.Toplevel):
                     self.vars['aht_seconds'].get(),
                     self.vars['concurrency'].get(),
                     shrinkage,
+                    produttivita,
                     sl_target,
                     self.vars['service_level_seconds'].get(),
                     self.vars['asa_target_seconds'].get(),
