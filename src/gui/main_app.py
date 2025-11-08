@@ -14,6 +14,7 @@ from database.db_manager import DatabaseManager
 from database.db_creator import DatabaseCreator
 from gui.operatore_form import OperatoreForm
 from gui.quick_edit_dialog import QuickEditDialog
+from gui.cambio_turno_dialog import CambioTurnoDialog
 from gui.capability_dashboard import CapabilityDashboard
 from gui.riepilogo_screen import RiepilogoScreen
 
@@ -174,6 +175,8 @@ class MatriciApp:
                   width=20, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="⚡ Modifiche Rapide", command=self.modifiche_rapide,
                   width=20, style='Accent.TButton').pack(side='left', padx=5)
+        ttk.Button(toolbar, text="🔄 Cambio Turno", command=self.cambio_turno,
+                  width=18, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="📊 Importa Excel", command=self.importa_excel,
                   width=18, style='Accent.TButton').pack(side='left', padx=5)
         ttk.Button(toolbar, text="✏️ Modifica", command=self.modifica_operatore,
@@ -330,6 +333,14 @@ class MatriciApp:
             data = datetime.now()
 
         dialog = QuickEditDialog(self.root, self.db_manager, operatore_id=operatore_id, data=data)
+        dialog.transient(self.root)
+        dialog.grab_set()
+        self.root.wait_window(dialog)
+        self.refresh_operatori()
+
+    def cambio_turno(self):
+        """Apre dialog per cambio turno tra operatori"""
+        dialog = CambioTurnoDialog(self.root, self.db_manager)
         dialog.transient(self.root)
         dialog.grab_set()
         self.root.wait_window(dialog)
