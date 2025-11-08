@@ -16,6 +16,7 @@ class CapabilityDashboard(ttk.Frame):
         self.db_manager = db_manager
         self.current_data = None
         self.setup_ui()
+        self.load_skills()  # Carica skill all'inizializzazione
 
     def setup_ui(self):
         """Crea l'interfaccia della dashboard"""
@@ -32,6 +33,13 @@ class CapabilityDashboard(ttk.Frame):
         self.date_entry = DateEntry(row1, textvariable=self.date_var, width=12,
                                      date_pattern='dd/mm/yyyy')
         self.date_entry.pack(side='left', padx=5)
+
+        # Checkbox "Tutte le date"
+        self.all_dates_var = tk.BooleanVar(value=False)
+        all_dates_check = ttk.Checkbutton(row1, text="Tutte le date",
+                                          variable=self.all_dates_var,
+                                          command=self.toggle_date_filter)
+        all_dates_check.pack(side='left', padx=5)
 
         ttk.Label(row1, text="Intervallo:", font=('Arial', 10, 'bold')).pack(side='left', padx=(20, 5))
         self.interval_var = tk.StringVar(value='15')
@@ -156,6 +164,36 @@ class CapabilityDashboard(ttk.Frame):
             lbl = ttk.Label(frame, text=text, background=color, padding=5)
             lbl.pack()
 
+    def toggle_date_filter(self):
+        """Abilita/disabilita il filtro data quando la checkbox 'Tutte le date' viene selezionata"""
+        if self.all_dates_var.get():
+            # Checkbox selezionata: disabilita il DateEntry
+            self.date_entry.config(state='disabled')
+        else:
+            # Checkbox deselezionata: abilita il DateEntry
+            self.date_entry.config(state='normal')
+
+    def load_skills(self):
+        """Carica lista skill dal database"""
+        try:
+            self.db_manager.connect()
+
+            # Carica skill dalla tabella Skills
+            skills_data = self.db_manager.execute_query("SELECT Codice_Skill FROM Skills ORDER BY Codice_Skill")
+
+            if skills_data:
+                skills = ['Tutti'] + [row[0] for row in skills_data]
+                self.skill_combo['values'] = skills
+            else:
+                # Se non ci sono skill nella tabella Skills, usa solo "Tutti"
+                self.skill_combo['values'] = ['Tutti']
+
+            self.db_manager.close()
+        except Exception as e:
+            # In caso di errore, lascia solo "Tutti"
+            self.skill_combo['values'] = ['Tutti']
+            print(f"Errore caricamento skill: {e}")
+
     def refresh_data(self):
         """Aggiorna i dati della dashboard"""
         try:
@@ -168,11 +206,20 @@ class CapabilityDashboard(ttk.Frame):
 
             # Carica operatori
             self.db_manager.connect()
-            operatori_data = self.db_manager.get_operatori(data.strftime('%Y-%m-%d'))
+
+            # Se "Tutte le date" è selezionata, carica tutti gli operatori
+            if self.all_dates_var.get():
+                operatori_data = self.db_manager.get_operatori(None)  # Tutti gli operatori
+            else:
+                operatori_data = self.db_manager.get_operatori(data.strftime('%Y-%m-%d'))
 
             if not operatori_data:
-                messagebox.showinfo("Info", "Nessun operatore trovato per questa data.\n\n"
-                                           "Inserire operatori nella sezione Anagrafica.")
+                if self.all_dates_var.get():
+                    messagebox.showinfo("Info", "Nessun operatore trovato nel database.\n\n"
+                                               "Inserire operatori nella sezione Anagrafica.")
+                else:
+                    messagebox.showinfo("Info", f"Nessun operatore trovato per la data {self.date_var.get()}.\n\n"
+                                               "Prova a selezionare 'Tutte le date' o inserire operatori per questa data.")
                 self.db_manager.close()
                 return
 
