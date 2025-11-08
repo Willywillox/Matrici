@@ -257,20 +257,65 @@ class OperatoreForm(tk.Toplevel):
         """Carica dati operatore esistente"""
         try:
             self.db_manager.connect()
-            result = self.db_manager.execute_query(
+
+            # Ottieni i nomi delle colonne
+            cursor = self.db_manager.execute_query(
                 "SELECT * FROM Anagrafica_Operatori WHERE ID = ?",
                 (self.operatore_id,)
             )
 
-            if result:
-                op_data = result[0]
-                # Popola campi
-                # TODO: Implementare mapping dati
-                pass
+            if cursor and len(cursor) > 0:
+                # Ottieni nomi colonne e dati
+                columns = [
+                    'ID', 'Nome', 'Cognome', 'ID_SAP', 'Tipo_Contratto', 'FTE', 'Ore_Settimana',
+                    'ID_Turno', 'Ora_Inizio_Turno', 'Ora_Fine_Turno',
+                    'Ora_Inizio_Turno_Spezzato', 'Ora_Fine_Turno_Spezzato',
+                    'Inizio_Strao_1', 'Fine_Strao_1', 'Inizio_Strao_2', 'Fine_Strao_2',
+                    'Inizio_Strao_3', 'Fine_Strao_3',
+                    'Inizio_Pausa_1', 'Fine_Pausa_1', 'Inizio_Pausa_2', 'Fine_Pausa_2',
+                    'Inizio_Pausa_3', 'Fine_Pausa_3', 'Inizio_Pausa_4', 'Fine_Pausa_4',
+                    'Inizio_Pausa_5', 'Fine_Pausa_5',
+                    'Tipo_Giust_1', 'Inizio_Giust_1', 'Fine_Giust_1',
+                    'Tipo_Giust_2', 'Inizio_Giust_2', 'Fine_Giust_2',
+                    'Tipo_Giust_3', 'Inizio_Giust_3', 'Fine_Giust_3',
+                    'Tipo_Giust_4', 'Inizio_Giust_4', 'Fine_Giust_4',
+                    'Tipo_Giust_5', 'Inizio_Giust_5', 'Fine_Giust_5',
+                    'Etichetta_Skill', 'Data_Riferimento', 'Postazione'
+                ]
+
+                op_data = cursor[0]
+
+                # Carica i valori nei campi del form
+                for idx, col_name in enumerate(columns):
+                    if col_name in self.vars and idx < len(op_data):
+                        value = op_data[idx]
+                        if value is not None:
+                            # Converti datetime/time in stringa HH:MM per campi orario
+                            if 'Ora_' in col_name or 'Inizio_' in col_name or 'Fine_' in col_name:
+                                if col_name != 'Ore_Settimana':  # Escludi Ore_Settimana che è numerico
+                                    # Estrai solo HH:MM se è datetime
+                                    value_str = str(value)
+                                    if ' ' in value_str:
+                                        value_str = value_str.split(' ')[1]  # Prendi la parte time
+                                    if len(value_str) >= 5:
+                                        value_str = value_str[:5]  # HH:MM
+                                    self.vars[col_name].set(value_str)
+                                else:
+                                    self.vars[col_name].set(str(value))
+                            elif col_name == 'Data_Riferimento':
+                                # Converti data in formato YYYY-MM-DD
+                                value_str = str(value)
+                                if ' ' in value_str:
+                                    value_str = value_str.split(' ')[0]  # Solo la data
+                                self.vars[col_name].set(value_str)
+                            else:
+                                self.vars[col_name].set(str(value))
 
             self.db_manager.close()
         except Exception as e:
             messagebox.showerror("Errore", f"Errore caricamento operatore: {e}")
+            import traceback
+            traceback.print_exc()
 
     def calcola_pause_automatiche(self):
         """Calcola e assegna pause automaticamente con distribuzione intelligente"""
