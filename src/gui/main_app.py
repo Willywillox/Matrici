@@ -135,6 +135,13 @@ class MatriciApp:
                             font=('Arial', 9, 'italic'))
         db_label.pack(side='right', padx=20)
 
+        # === STATUS BAR (create BEFORE tabs so refresh_operatori can use it) ===
+        status_frame = ttk.Frame(self.root, relief='sunken', borderwidth=1)
+        status_frame.pack(fill='x', side='bottom')
+
+        self.status_label = ttk.Label(status_frame, text="Pronto", anchor='w')
+        self.status_label.pack(side='left', fill='x', expand=True, padx=5)
+
         # === NOTEBOOK (TABS) ===
         self.notebook = ttk.Notebook(self.root)
         self.notebook.pack(fill='both', expand=True, padx=5, pady=5)
@@ -156,13 +163,6 @@ class MatriciApp:
         self.tab_forecast = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_forecast, text='🎯 Forecast')
         self.setup_forecast_tab()
-
-        # === STATUS BAR ===
-        status_frame = ttk.Frame(self.root, relief='sunken', borderwidth=1)
-        status_frame.pack(fill='x', side='bottom')
-
-        self.status_label = ttk.Label(status_frame, text="Pronto", anchor='w')
-        self.status_label.pack(side='left', fill='x', expand=True, padx=5)
 
     def setup_anagrafica_tab(self):
         """Setup tab anagrafica operatori"""
