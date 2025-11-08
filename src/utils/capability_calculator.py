@@ -190,7 +190,10 @@ class CapabilityCalculator:
 
             # Crea record per ogni skill
             for skill, stats in stats_per_skill.items():
-                fte_effettivi = stats['in_produzione']  # Operatori effettivamente produttivi
+                # Calcola FTE effettivi correttamente:
+                # FTE = (Operatori_in_produzione × Ore_fascia) / 8
+                ore_fascia = intervallo_minuti / 60.0  # Converti minuti in ore
+                fte_effettivi = (stats['in_produzione'] * ore_fascia) / 8.0
 
                 record = {
                     'Fascia_Oraria': fascia,
@@ -477,13 +480,19 @@ class CapabilityCalculator:
             if tipologia in rendiconto.columns:
                 rendiconto[f'Ore_{tipologia}'] = rendiconto[tipologia] * ore_per_fascia
 
+        # Calcola FTE medio per il periodo
+        # FTE = Ore_Produzione / 8 / Giorni_Lavorati
+        giorni_lavorati = (data_fine - data_inizio).days + 1
+        rendiconto['FTE_Medio'] = rendiconto['Ore_Produzione'] / 8.0 / giorni_lavorati
+
         # Seleziona colonne finali
         colonne_base = [
             'Skill',
             'Ore_Totali_Presenza',
             'Ore_Produzione',
             'Ore_Pausa',
-            'Ore_Straordinario'
+            'Ore_Straordinario',
+            'FTE_Medio'
         ]
 
         # Aggiungi colonne ore giustificativi
