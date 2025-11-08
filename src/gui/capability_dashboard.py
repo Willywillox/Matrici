@@ -181,18 +181,34 @@ class CapabilityDashboard(ttk.Frame):
             # Carica skill dalla tabella Skills
             skills_data = self.db_manager.execute_query("SELECT Codice_Skill FROM Skills ORDER BY Codice_Skill")
 
-            if skills_data:
+            if skills_data and len(skills_data) > 0:
                 skills = ['Tutti'] + [row[0] for row in skills_data]
                 self.skill_combo['values'] = skills
             else:
-                # Se non ci sono skill nella tabella Skills, usa solo "Tutti"
-                self.skill_combo['values'] = ['Tutti']
+                # Fallback: Se Skills è vuota, carica dagli operatori
+                print("[INFO] Tabella Skills vuota, carico skill dagli operatori...")
+                operatori_skills = self.db_manager.execute_query("""
+                    SELECT DISTINCT Etichetta_Skill
+                    FROM Anagrafica_Operatori
+                    WHERE Etichetta_Skill IS NOT NULL
+                    AND TRIM(Etichetta_Skill) != ''
+                    ORDER BY Etichetta_Skill
+                """)
+
+                if operatori_skills and len(operatori_skills) > 0:
+                    skills = ['Tutti'] + [row[0].strip() for row in operatori_skills]
+                    self.skill_combo['values'] = skills
+                    print(f"[INFO] Caricati {len(operatori_skills)} skill dagli operatori")
+                else:
+                    # Nessuno skill trovato
+                    self.skill_combo['values'] = ['Tutti']
+                    print("[WARN] Nessuno skill trovato nel database")
 
             self.db_manager.close()
         except Exception as e:
             # In caso di errore, lascia solo "Tutti"
             self.skill_combo['values'] = ['Tutti']
-            print(f"Errore caricamento skill: {e}")
+            print(f"[ERROR] Errore caricamento skill: {e}")
 
     def refresh_data(self):
         """Aggiorna i dati della dashboard"""

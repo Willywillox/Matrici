@@ -211,8 +211,9 @@ class MatriciApp:
 
         ttk.Label(filter_frame, text="Skill:").pack(side='left', padx=(20, 5))
         self.filter_skill_var = tk.StringVar(value='Tutte')
-        ttk.Combobox(filter_frame, textvariable=self.filter_skill_var,
-                    values=['Tutte'], width=20, state='readonly').pack(side='left', padx=5)
+        self.filter_skill_combo = ttk.Combobox(filter_frame, textvariable=self.filter_skill_var,
+                    values=['Tutte'], width=20, state='readonly')
+        self.filter_skill_combo.pack(side='left', padx=5)
 
         # Filtro ricerca globale
         ttk.Label(filter_frame, text="🔍 Cerca:").pack(side='left', padx=(20, 5))
@@ -279,8 +280,43 @@ class MatriciApp:
         # Bind double-click
         self.tree_operatori.bind('<Double-1>', lambda e: self.modifica_operatore())
 
-        # Carica dati
+        # Carica skill e dati
+        self.load_skills_anagrafica()
         self.refresh_operatori()
+
+    def load_skills_anagrafica(self):
+        """Carica lista skill nel filtro dell'anagrafica operatori"""
+        try:
+            self.db_manager.connect()
+
+            # Carica skill dalla tabella Skills
+            skills_data = self.db_manager.execute_query("SELECT Codice_Skill FROM Skills ORDER BY Codice_Skill")
+
+            if skills_data and len(skills_data) > 0:
+                skills = ['Tutte'] + [row[0] for row in skills_data]
+                self.filter_skill_combo['values'] = skills
+            else:
+                # Fallback: Se Skills è vuota, carica dagli operatori
+                operatori_skills = self.db_manager.execute_query("""
+                    SELECT DISTINCT Etichetta_Skill
+                    FROM Anagrafica_Operatori
+                    WHERE Etichetta_Skill IS NOT NULL
+                    AND TRIM(Etichetta_Skill) != ''
+                    ORDER BY Etichetta_Skill
+                """)
+
+                if operatori_skills and len(operatori_skills) > 0:
+                    skills = ['Tutte'] + [row[0].strip() for row in operatori_skills]
+                    self.filter_skill_combo['values'] = skills
+                else:
+                    # Nessuno skill trovato
+                    self.filter_skill_combo['values'] = ['Tutte']
+
+            self.db_manager.close()
+        except Exception as e:
+            # In caso di errore, lascia solo "Tutte"
+            self.filter_skill_combo['values'] = ['Tutte']
+            print(f"[ERROR] Errore caricamento skill: {e}")
 
     def setup_forecast_tab(self):
         """Setup tab forecast"""
