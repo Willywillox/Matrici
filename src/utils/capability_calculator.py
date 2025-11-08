@@ -210,6 +210,18 @@ class CapabilityCalculator:
                 axis=1
             )
 
+            # Calcola Agenti_Richiesti (numero di teste) applicando formula inversa della shrinkage
+            df_merged['Agenti_Richiesti'] = df_merged.apply(
+                lambda row: self._calculate_required_agents_from_fte(
+                    row['Skill'],
+                    row['FTE_Richiesti']
+                ),
+                axis=1
+            )
+        else:
+            # Se non abbiamo configurazioni Erlang, usa approssimazione base
+            df_merged['Agenti_Richiesti'] = df_merged['FTE_Richiesti'].apply(lambda x: round(x) if x > 0 else 0)
+
         df_merged['Delta_FTE'] = df_merged['FTE_Effettivi'] - df_merged['FTE_Richiesti']
 
         # Calcola copertura percentuale
@@ -260,6 +272,38 @@ class CapabilityCalculator:
         except Exception as e:
             print(f"Errore calcolo Erlang per skill {skill}: {e}")
             return fallback_fte
+
+    def _calculate_required_agents_from_fte(self, skill: str, fte_richiesti: float) -> int:
+        """
+        Calcola numero di teste (agenti) richiesti da FTE
+
+        Formula inversa: Agenti = FTE * (1 - shrinkage)
+
+        Args:
+            skill: Skill/coda
+            fte_richiesti: FTE richiesti (con shrinkage applicato)
+
+        Returns:
+            Numero di agenti richiesti (teste)
+        """
+        import math
+
+        if fte_richiesti <= 0:
+            return 0
+
+        # Se abbiamo config per questa skill, usa la shrinkage configurata
+        if skill in self.erlang_configs:
+            config = self.erlang_configs[skill]
+            shrinkage = config.get('shrinkage', 0.30)
+
+            # Formula inversa: Agenti = FTE * (1 - shrinkage)
+            agenti = fte_richiesti * (1 - shrinkage)
+
+            # Arrotonda per eccesso (serve almeno questo numero di teste)
+            return math.ceil(agenti)
+        else:
+            # Senza configurazione, approssima
+            return math.ceil(fte_richiesti)
 
     def calcola_rendiconto_per_servizio(
         self,

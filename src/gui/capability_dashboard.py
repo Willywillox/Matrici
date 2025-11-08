@@ -104,8 +104,8 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview
         columns = (
-            'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione',
-            'In Strao', 'FTE Eff.', 'FTE Rich.', 'Delta', 'Copertura %', 'Stato'
+            'Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione',
+            'In Strao', 'FTE Eff.', 'FTE Rich.', 'Richiesto', 'Delta', 'Copertura %', 'Stato'
         )
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
@@ -117,6 +117,7 @@ class CapabilityDashboard(ttk.Frame):
 
         # Colonne con larghezze
         column_widths = {
+            'Data': 90,
             'Fascia': 80,
             'Skill': 150,
             'Presenti': 70,
@@ -125,6 +126,7 @@ class CapabilityDashboard(ttk.Frame):
             'In Strao': 70,
             'FTE Eff.': 70,
             'FTE Rich.': 80,
+            'Richiesto': 80,
             'Delta': 70,
             'Copertura %': 90,
             'Stato': 100
@@ -303,6 +305,8 @@ class CapabilityDashboard(ttk.Frame):
 
             # Estrai dati con gestione errori
             try:
+                # Data e fascia oraria
+                data = row['Fascia_Oraria'].strftime('%d/%m/%Y')
                 fascia = row['Fascia_Oraria'].strftime('%H:%M')
                 skill = row['Skill']
                 presenti = int(row['Presenti'])
@@ -318,6 +322,12 @@ class CapabilityDashboard(ttk.Frame):
                 fte_rich = row.get('FTE_Richiesti', 0)
                 if fte_rich is None or pd.isna(fte_rich):
                     fte_rich = 0
+
+                # Agenti richiesti (numero teste)
+                agenti_richiesti = row.get('Agenti_Richiesti', 0)
+                if agenti_richiesti is None or pd.isna(agenti_richiesti):
+                    agenti_richiesti = 0
+                agenti_richiesti = int(agenti_richiesti)
 
                 delta = row.get('Delta_FTE', 0)
                 if delta is None or pd.isna(delta):
@@ -338,11 +348,12 @@ class CapabilityDashboard(ttk.Frame):
                     stato = "🔴 Critico"
                     tag = 'critical'
 
-                # Inserisci riga
+                # Inserisci riga (ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione,
+                # In Strao, FTE Eff., FTE Rich., Richiesto, Delta, Copertura %, Stato)
                 values = (
-                    fascia, skill, presenti, in_pausa, in_prod, in_strao,
-                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", f"{delta:+.1f}",
-                    f"{copertura:.0f}%", stato
+                    data, fascia, skill, presenti, in_pausa, in_prod, in_strao,
+                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", agenti_richiesti,
+                    f"{delta:+.1f}", f"{copertura:.0f}%", stato
                 )
 
                 self.tree.insert('', 'end', values=values, tags=(tag,))
