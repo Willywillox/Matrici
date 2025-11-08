@@ -82,7 +82,17 @@ class OperatoreForm(tk.Toplevel):
         self.create_section(scrollable_frame, "TURNO ORDINARIO", row)
 
         row += 1
-        self.create_field(scrollable_frame, row, "ID Turno:", "ID_Turno", entry_width=15)
+        # ID Turno con combobox (caricato da database Turni)
+        turni_list = self.get_turni_list()
+        self.create_field(scrollable_frame, row, "ID Turno *:", "ID_Turno",
+                         combo_values=turni_list, entry_width=20)
+
+        # Bind evento per auto-compilare orari quando si seleziona turno
+        if hasattr(self, 'vars') and 'ID_Turno' in self.vars:
+            # Crea Entry widget per ID_Turno se non è combobox
+            # Il bind verrà fatto dopo la creazione del widget
+            pass
+
         self.create_field(scrollable_frame, row, "Ora Inizio:", "Ora_Inizio_Turno",
                          is_time=True, default="09:00", col_offset=3)
         self.create_field(scrollable_frame, row, "Ora Fine:", "Ora_Fine_Turno",
@@ -248,6 +258,12 @@ class OperatoreForm(tk.Toplevel):
 
         widget.grid(row=row, column=col_offset+1, sticky='w', padx=5, pady=5)
 
+        # Bind speciale per ID_Turno (auto-compila orari)
+        if var_name == 'ID_Turno' and combo_values:
+            widget.bind('<<ComboboxSelected>>', self.on_turno_selected)
+
+        return widget
+
     def on_time_focus_in(self, event, var_name):
         """Gestisce focus su campo time"""
         widget = event.widget
@@ -264,6 +280,55 @@ class OperatoreForm(tk.Toplevel):
             return [''] + [skill[1] for skill in skills]  # skill[1] = Codice_Skill
         except:
             return ['CUSTOMER_CARE', 'BACK_OFFICE', 'TECHNICAL_SUPPORT']
+
+    def get_turni_list(self):
+        """Recupera lista turni dal database"""
+        try:
+            self.db_manager.connect()
+            turni = self.db_manager.execute_query("SELECT ID_Turno FROM Turni ORDER BY ID_Turno")
+            self.db_manager.close()
+            if turni:
+                return [''] + [t[0] for t in turni]
+            return ['']
+        except Exception as e:
+            print(f"Errore caricamento turni: {e}")
+            return ['']
+
+    def on_turno_selected(self, event=None):
+        """Auto-compila orari turno quando viene selezionato un ID_Turno"""
+        try:
+            id_turno = self.vars['ID_Turno'].get().strip()
+            if not id_turno:
+                return
+
+            # Carica dati turno dal database
+            self.db_manager.connect()
+            turno = self.db_manager.execute_query(
+                """SELECT Ora_Inizio, Ora_Fine, Ora_Inizio_Spezzato, Ora_Fine_Spezzato
+                   FROM Turni WHERE ID_Turno = ?""",
+                (id_turno,)
+            )
+            self.db_manager.close()
+
+            if turno and len(turno) > 0:
+                turno_data = turno[0]
+
+                # Popola orari turno ordinario
+                if turno_data[0]:  # Ora_Inizio
+                    self.vars['Ora_Inizio_Turno'].set(str(turno_data[0]))
+                if turno_data[1]:  # Ora_Fine
+                    self.vars['Ora_Fine_Turno'].set(str(turno_data[1]))
+
+                # Popola orari turno spezzato (se esistono)
+                if turno_data[2]:  # Ora_Inizio_Spezzato
+                    self.vars['Ora_Inizio_Turno_Spezzato'].set(str(turno_data[2]))
+                if turno_data[3]:  # Ora_Fine_Spezzato
+                    self.vars['Ora_Fine_Turno_Spezzato'].set(str(turno_data[3]))
+
+                print(f"✅ Orari auto-compilati per turno {id_turno}")
+
+        except Exception as e:
+            print(f"Errore auto-compilazione turno: {e}")
 
     def load_operatore(self):
         """Carica dati operatore esistente"""

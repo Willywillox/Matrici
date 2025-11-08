@@ -119,6 +119,21 @@ class DatabaseCreator:
                 )
             """)
 
+            # Tabella Turni (anagrafica turni standard)
+            cursor.execute("""
+                CREATE TABLE Turni (
+                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID_Turno TEXT(20) UNIQUE NOT NULL,
+                    Descrizione TEXT(255),
+                    Ora_Inizio DATETIME NOT NULL,
+                    Ora_Fine DATETIME NOT NULL,
+                    Ore_Turno DOUBLE,
+                    Ora_Inizio_Spezzato DATETIME,
+                    Ora_Fine_Spezzato DATETIME,
+                    Note TEXT(255)
+                )
+            """)
+
             # Tabella Storico Turni (per mantenere storico)
             cursor.execute("""
                 CREATE TABLE Storico_Turni (
@@ -237,6 +252,20 @@ class DatabaseCreator:
                 Codice_Skill TEXT UNIQUE NOT NULL,
                 Descrizione TEXT,
                 Produttivita_Default REAL
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Turni (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                ID_Turno TEXT UNIQUE NOT NULL,
+                Descrizione TEXT,
+                Ora_Inizio TEXT NOT NULL,
+                Ora_Fine TEXT NOT NULL,
+                Ore_Turno REAL,
+                Ora_Inizio_Spezzato TEXT,
+                Ora_Fine_Spezzato TEXT,
+                Note TEXT
             )
         """)
 

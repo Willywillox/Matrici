@@ -222,9 +222,17 @@ class MatriciApp:
         scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
         scroll_x.pack(side='bottom', fill='x')
 
-        # Treeview
+        # Treeview - TUTTE le colonne dettagliate
         columns = ('ID', 'ID_SAP', 'Nome', 'Cognome', 'Contratto', 'FTE',
-                   'Turno', 'Skill', 'Postazione', 'Data', 'Straordinari', 'Pause', 'Giustificativi')
+                   'Turno', 'Turno_Spezzato',
+                   'Strao_1', 'Strao_2', 'Strao_3',
+                   'Pausa_1', 'Pausa_2', 'Pausa_3', 'Pausa_4', 'Pausa_5',
+                   'Giust_1_Tipo', 'Giust_1_Orario',
+                   'Giust_2_Tipo', 'Giust_2_Orario',
+                   'Giust_3_Tipo', 'Giust_3_Orario',
+                   'Giust_4_Tipo', 'Giust_4_Orario',
+                   'Giust_5_Tipo', 'Giust_5_Orario',
+                   'Skill', 'Postazione', 'Data')
 
         self.tree_operatori = ttk.Treeview(table_frame, columns=columns, show='headings',
                                            yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
@@ -232,10 +240,20 @@ class MatriciApp:
         scroll_y.config(command=self.tree_operatori.yview)
         scroll_x.config(command=self.tree_operatori.xview)
 
-        # Intestazioni
-        widths = {'ID': 50, 'ID_SAP': 80, 'Nome': 100, 'Cognome': 100, 'Contratto': 100,
-                 'FTE': 50, 'Turno': 100, 'Skill': 120, 'Postazione': 110, 'Data': 90,
-                 'Straordinari': 80, 'Pause': 60, 'Giustificativi': 100}
+        # Intestazioni con larghezze
+        widths = {
+            'ID': 50, 'ID_SAP': 80, 'Nome': 100, 'Cognome': 100,
+            'Contratto': 100, 'FTE': 50,
+            'Turno': 100, 'Turno_Spezzato': 110,
+            'Strao_1': 100, 'Strao_2': 100, 'Strao_3': 100,
+            'Pausa_1': 80, 'Pausa_2': 80, 'Pausa_3': 80, 'Pausa_4': 80, 'Pausa_5': 80,
+            'Giust_1_Tipo': 80, 'Giust_1_Orario': 100,
+            'Giust_2_Tipo': 80, 'Giust_2_Orario': 100,
+            'Giust_3_Tipo': 80, 'Giust_3_Orario': 100,
+            'Giust_4_Tipo': 80, 'Giust_4_Orario': 100,
+            'Giust_5_Tipo': 80, 'Giust_5_Orario': 100,
+            'Skill': 120, 'Postazione': 110, 'Data': 90
+        }
 
         for col in columns:
             self.tree_operatori.heading(col, text=col, command=lambda c=col: self.sort_operatori(c))
@@ -471,52 +489,133 @@ class MatriciApp:
                     # SQLite
                     values = list(row)
 
-                # Conta straordinari, pause, giustificativi
-                strao_count = sum(1 for i in range(1, 4) if values[11 + (i-1)*2])  # Inizio_Strao_1-3
-                pause_count = sum(1 for i in range(1, 6) if values[17 + (i-1)*2])  # Inizio_Pausa_1-5
-                giust_count = sum(1 for i in range(1, 6) if values[27 + (i-1)*3])  # Tipo_Giust_1-5
+                # Helper per formattare orari
+                def format_time(value):
+                    if not value:
+                        return ''
+                    val_str = str(value)
+                    if ' ' in val_str:
+                        val_str = val_str.split(' ')[1]  # Prendi parte time
+                    return val_str[:5] if len(val_str) >= 5 else val_str  # HH:MM
 
-                # Estrai campi principali (indici dipendono dalla struttura tabella)
+                def format_time_range(inizio, fine):
+                    if inizio and fine:
+                        return f"{format_time(inizio)}-{format_time(fine)}"
+                    elif inizio:
+                        return format_time(inizio)
+                    return ''
+
+                # Estrai TUTTE le colonne dettagliate
                 try:
-                    postazione = values[44] if len(values) > 44 and values[44] else 'Non specificata'
+                    # Dati base
+                    op_id = values[0]
+                    id_sap = values[3] if len(values) > 3 else ''
+                    nome = values[1] if len(values) > 1 else ''
+                    cognome = values[2] if len(values) > 2 else ''
+                    contratto = values[4] if len(values) > 4 and values[4] else ''
+                    fte = values[5] if len(values) > 5 and values[5] else ''
 
-                    # Formatta orario turno come "09:00-18:00"
-                    ora_inizio = values[8] if len(values) > 8 and values[8] else None
-                    ora_fine = values[9] if len(values) > 9 and values[9] else None
-
-                    if ora_inizio and ora_fine:
-                        # Estrai solo HH:MM se è datetime
-                        inizio_str = str(ora_inizio)
-                        fine_str = str(ora_fine)
-                        if ' ' in inizio_str:
-                            inizio_str = inizio_str.split(' ')[1][:5]
-                        if ' ' in fine_str:
-                            fine_str = fine_str.split(' ')[1][:5]
-                        turno_display = f"{inizio_str}-{fine_str}"
-                    elif values[7]:
-                        # Fallback: mostra ID_Turno se orari non disponibili
-                        turno_display = str(values[7])
-                    else:
-                        turno_display = ''
-
-                    row_data = (
-                        values[0],  # ID
-                        values[3],  # ID_SAP
-                        values[1],  # Nome
-                        values[2],  # Cognome
-                        values[4] if values[4] else '',  # Tipo_Contratto
-                        values[5] if values[5] else '',  # FTE
-                        turno_display,  # Turno (ora mostra "09:00-18:00")
-                        values[42] if values[42] else '',  # Etichetta_Skill
-                        postazione,  # Postazione
-                        values[43] if values[43] else '',  # Data_Riferimento
-                        strao_count,
-                        pause_count,
-                        giust_count
+                    # Turno ordinario
+                    turno = format_time_range(
+                        values[8] if len(values) > 8 else None,
+                        values[9] if len(values) > 9 else None
                     )
-                except IndexError:
+
+                    # Turno spezzato
+                    turno_spezzato = format_time_range(
+                        values[10] if len(values) > 10 else None,
+                        values[11] if len(values) > 11 else None
+                    )
+
+                    # Straordinari (3 slot)
+                    strao_1 = format_time_range(
+                        values[12] if len(values) > 12 else None,
+                        values[13] if len(values) > 13 else None
+                    )
+                    strao_2 = format_time_range(
+                        values[14] if len(values) > 14 else None,
+                        values[15] if len(values) > 15 else None
+                    )
+                    strao_3 = format_time_range(
+                        values[16] if len(values) > 16 else None,
+                        values[17] if len(values) > 17 else None
+                    )
+
+                    # Pause (5 slot)
+                    pausa_1 = format_time_range(
+                        values[18] if len(values) > 18 else None,
+                        values[19] if len(values) > 19 else None
+                    )
+                    pausa_2 = format_time_range(
+                        values[20] if len(values) > 20 else None,
+                        values[21] if len(values) > 21 else None
+                    )
+                    pausa_3 = format_time_range(
+                        values[22] if len(values) > 22 else None,
+                        values[23] if len(values) > 23 else None
+                    )
+                    pausa_4 = format_time_range(
+                        values[24] if len(values) > 24 else None,
+                        values[25] if len(values) > 25 else None
+                    )
+                    pausa_5 = format_time_range(
+                        values[26] if len(values) > 26 else None,
+                        values[27] if len(values) > 27 else None
+                    )
+
+                    # Giustificativi (5 slot) - Tipo e Orario separati
+                    giust_1_tipo = values[28] if len(values) > 28 and values[28] else ''
+                    giust_1_orario = format_time_range(
+                        values[29] if len(values) > 29 else None,
+                        values[30] if len(values) > 30 else None
+                    )
+
+                    giust_2_tipo = values[31] if len(values) > 31 and values[31] else ''
+                    giust_2_orario = format_time_range(
+                        values[32] if len(values) > 32 else None,
+                        values[33] if len(values) > 33 else None
+                    )
+
+                    giust_3_tipo = values[34] if len(values) > 34 and values[34] else ''
+                    giust_3_orario = format_time_range(
+                        values[35] if len(values) > 35 else None,
+                        values[36] if len(values) > 36 else None
+                    )
+
+                    giust_4_tipo = values[37] if len(values) > 37 and values[37] else ''
+                    giust_4_orario = format_time_range(
+                        values[38] if len(values) > 38 else None,
+                        values[39] if len(values) > 39 else None
+                    )
+
+                    giust_5_tipo = values[40] if len(values) > 40 and values[40] else ''
+                    giust_5_orario = format_time_range(
+                        values[41] if len(values) > 41 else None,
+                        values[42] if len(values) > 42 else None
+                    )
+
+                    # Skill, Postazione, Data
+                    skill = values[43] if len(values) > 43 and values[43] else ''
+                    data = values[44] if len(values) > 44 and values[44] else ''
+                    postazione = values[45] if len(values) > 45 and values[45] else 'Non specificata'
+
+                    # Costruisci riga completa
+                    row_data = (
+                        op_id, id_sap, nome, cognome, contratto, fte,
+                        turno, turno_spezzato,
+                        strao_1, strao_2, strao_3,
+                        pausa_1, pausa_2, pausa_3, pausa_4, pausa_5,
+                        giust_1_tipo, giust_1_orario,
+                        giust_2_tipo, giust_2_orario,
+                        giust_3_tipo, giust_3_orario,
+                        giust_4_tipo, giust_4_orario,
+                        giust_5_tipo, giust_5_orario,
+                        skill, postazione, data
+                    )
+                except (IndexError, Exception) as e:
                     # Fallback se indici non corrispondono
-                    row_data = values[:12] if len(values) >= 12 else values
+                    print(f"Errore parsing riga: {e}")
+                    continue
 
                 # Applica filtro di ricerca globale su tutte le colonne
                 if search_text:
