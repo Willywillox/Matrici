@@ -75,7 +75,7 @@ class OperatoreForm(tk.Toplevel):
 
         row += 1
         self.create_field(scrollable_frame, row, "Data Riferimento *:", "Data_Riferimento",
-                         is_date=True, default=datetime.now().strftime('%Y-%m-%d'))
+                         is_date=True, default=datetime.now().strftime('%d/%m/%Y'))
 
         # === SEZIONE TURNO ===
         row += 1
@@ -243,7 +243,7 @@ class OperatoreForm(tk.Toplevel):
         elif is_date:
             self.vars[var_name] = tk.StringVar(value=default)
             widget = DateEntry(parent, textvariable=self.vars[var_name],
-                              width=entry_width, date_pattern='yyyy-mm-dd')
+                              width=entry_width, date_pattern='dd/mm/yyyy')
         elif is_time:
             self.vars[var_name] = tk.StringVar(value=default)
             widget = ttk.Entry(parent, textvariable=self.vars[var_name], width=10)
@@ -380,10 +380,16 @@ class OperatoreForm(tk.Toplevel):
                                 else:
                                     self.vars[col_name].set(str(value))
                             elif col_name == 'Data_Riferimento':
-                                # Converti data in formato YYYY-MM-DD
+                                # Converti data da formato ISO (YYYY-MM-DD) a formato italiano (dd/mm/yyyy)
                                 value_str = str(value)
                                 if ' ' in value_str:
                                     value_str = value_str.split(' ')[0]  # Solo la data
+                                try:
+                                    # Converti da ISO a italiano
+                                    data_obj = datetime.strptime(value_str, '%Y-%m-%d')
+                                    value_str = data_obj.strftime('%d/%m/%Y')
+                                except:
+                                    pass  # Se fallisce, usa il valore originale
                                 self.vars[col_name].set(value_str)
                             else:
                                 self.vars[col_name].set(str(value))
@@ -490,7 +496,15 @@ class OperatoreForm(tk.Toplevel):
             if value == "HH:MM" or value == "":
                 operatore_data[var_name] = None
             else:
-                operatore_data[var_name] = value
+                # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+                if var_name == 'Data_Riferimento' and value:
+                    try:
+                        data_obj = datetime.strptime(value, '%d/%m/%Y')
+                        operatore_data[var_name] = data_obj.strftime('%Y-%m-%d')
+                    except:
+                        operatore_data[var_name] = value  # Fallback al valore originale
+                else:
+                    operatore_data[var_name] = value
 
         # Salva nel database
         try:

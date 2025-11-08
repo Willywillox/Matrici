@@ -53,9 +53,9 @@ class QuickEditDialog(tk.Toplevel):
         ttk.Label(select_frame, text="Data:", font=('Arial', 9, 'bold')).grid(
             row=0, column=2, sticky='e', padx=(20, 5), pady=5)
 
-        self.date_var = tk.StringVar(value=self.data.strftime('%Y-%m-%d'))
+        self.date_var = tk.StringVar(value=self.data.strftime('%d/%m/%Y'))
         self.date_entry = DateEntry(select_frame, textvariable=self.date_var,
-                                    width=12, date_pattern='yyyy-mm-dd')
+                                    width=12, date_pattern='dd/mm/yyyy')
         self.date_entry.grid(row=0, column=3, sticky='w', padx=5, pady=5)
         self.date_entry.bind('<<DateEntrySelected>>', self.on_date_change)
 
@@ -339,7 +339,14 @@ class QuickEditDialog(tk.Toplevel):
             if not id_sap:
                 return
 
-            data = self.date_var.get()
+            data_str = self.date_var.get()
+            # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+            try:
+                data_obj = datetime.strptime(data_str, '%d/%m/%Y')
+                data = data_obj.strftime('%Y-%m-%d')
+            except:
+                messagebox.showerror("Errore", "Formato data non valido")
+                return
 
             self.db_manager.connect()
             query = """
@@ -451,7 +458,15 @@ class QuickEditDialog(tk.Toplevel):
                 return
 
             id_sap = self.operatori_map.get(operatore_display)
-            data = self.date_var.get()
+            data_str = self.date_var.get()
+
+            # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+            try:
+                data_obj = datetime.strptime(data_str, '%d/%m/%Y')
+                data = data_obj.strftime('%Y-%m-%d')
+            except:
+                messagebox.showerror("Errore", "Formato data non valido")
+                return
 
             # Raccogli dati
             dati = {

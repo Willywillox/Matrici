@@ -28,9 +28,9 @@ class CapabilityDashboard(ttk.Frame):
         row1.pack(fill='x', pady=5)
 
         ttk.Label(row1, text="Data:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
-        self.date_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        self.date_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
         self.date_entry = DateEntry(row1, textvariable=self.date_var, width=12,
-                                     date_pattern='yyyy-mm-dd')
+                                     date_pattern='dd/mm/yyyy')
         self.date_entry.pack(side='left', padx=5)
 
         ttk.Label(row1, text="Intervallo:", font=('Arial', 10, 'bold')).pack(side='left', padx=(20, 5))
@@ -162,8 +162,8 @@ class CapabilityDashboard(ttk.Frame):
             from models.operatore import Operatore
             from utils.capability_calculator import CapabilityCalculator
 
-            # Parse parametri
-            data = datetime.strptime(self.date_var.get(), '%Y-%m-%d')
+            # Parse parametri (da formato italiano dd/mm/yyyy)
+            data = datetime.strptime(self.date_var.get(), '%d/%m/%Y')
             intervallo = int(self.interval_var.get())
 
             # Carica operatori

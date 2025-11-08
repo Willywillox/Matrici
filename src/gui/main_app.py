@@ -196,10 +196,10 @@ class MatriciApp:
         filter_frame.pack(fill='x', padx=10, pady=5)
 
         ttk.Label(filter_frame, text="Data:").pack(side='left', padx=5)
-        self.filter_date_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        self.filter_date_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
         from tkcalendar import DateEntry
         self.filter_date_entry = DateEntry(filter_frame, textvariable=self.filter_date_var,
-                                           width=12, date_pattern='yyyy-mm-dd')
+                                           width=12, date_pattern='dd/mm/yyyy')
         self.filter_date_entry.pack(side='left', padx=5)
 
         ttk.Label(filter_frame, text="Skill:").pack(side='left', padx=(20, 5))
@@ -333,7 +333,7 @@ class MatriciApp:
         # Prendi data dai filtri
         data_str = self.filter_date_var.get()
         try:
-            data = datetime.strptime(data_str, '%Y-%m-%d')
+            data = datetime.strptime(data_str, '%d/%m/%Y')
         except:
             data = datetime.now()
 
@@ -485,7 +485,15 @@ class MatriciApp:
             self.db_manager.connect()
 
             # Filtri
-            data_filtro = self.filter_date_var.get() if hasattr(self, 'filter_date_var') else None
+            data_filtro_str = self.filter_date_var.get() if hasattr(self, 'filter_date_var') else None
+            # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+            data_filtro = None
+            if data_filtro_str:
+                try:
+                    data_obj = datetime.strptime(data_filtro_str, '%d/%m/%Y')
+                    data_filtro = data_obj.strftime('%Y-%m-%d')
+                except:
+                    data_filtro = None
             operatori = self.db_manager.get_operatori(data_filtro)
 
             # Filtro di ricerca globale

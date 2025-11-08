@@ -62,9 +62,9 @@ class CambioTurnoDialog(tk.Toplevel):
         # Data
         ttk.Label(header_frame, text="Data:", font=('Arial', 10, 'bold')).grid(
             row=0, column=4, sticky='e', padx=5, pady=5)
-        self.date_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        self.date_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
         self.date_entry = DateEntry(header_frame, textvariable=self.date_var,
-                                    width=15, date_pattern='yyyy-mm-dd')
+                                    width=15, date_pattern='dd/mm/yyyy')
         self.date_entry.grid(row=0, column=5, padx=5, pady=5)
         self.date_entry.bind('<<DateEntrySelected>>', self.on_data_changed)
 
@@ -323,7 +323,15 @@ class CambioTurnoDialog(tk.Toplevel):
 
         id_sap_a = self.operatori_list[idx_a][0]
         id_sap_b = self.operatori_list[idx_b][0]
-        data = self.date_var.get()
+        data_str = self.date_var.get()
+
+        # Converti data da formato italiano (dd/mm/yyyy) a ISO (yyyy-mm-dd) per database
+        try:
+            data_obj = datetime.strptime(data_str, '%d/%m/%Y')
+            data = data_obj.strftime('%Y-%m-%d')
+        except:
+            messagebox.showerror("Errore", "Formato data non valido")
+            return
 
         # Carica dati
         self.op_a_data = self.load_operatore_data(id_sap_a, data)

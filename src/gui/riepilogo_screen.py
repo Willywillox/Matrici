@@ -42,15 +42,15 @@ class RiepilogoScreen(ttk.Frame):
         row2.pack(fill='x', pady=5)
 
         ttk.Label(row2, text="Data Inizio:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
-        self.date_start_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        self.date_start_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
         self.date_start_entry = DateEntry(row2, textvariable=self.date_start_var,
-                                          width=12, date_pattern='yyyy-mm-dd')
+                                          width=12, date_pattern='dd/mm/yyyy')
         self.date_start_entry.pack(side='left', padx=5)
 
         ttk.Label(row2, text="Data Fine:", font=('Arial', 10, 'bold')).pack(side='left', padx=(20, 5))
-        self.date_end_var = tk.StringVar(value=datetime.now().strftime('%Y-%m-%d'))
+        self.date_end_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
         self.date_end_entry = DateEntry(row2, textvariable=self.date_end_var,
-                                        width=12, date_pattern='yyyy-mm-dd')
+                                        width=12, date_pattern='dd/mm/yyyy')
         self.date_end_entry.pack(side='left', padx=5)
 
         # Row 3: Vista
@@ -163,15 +163,15 @@ class RiepilogoScreen(ttk.Frame):
         today = datetime.now()
 
         if report_type == 'giornaliero':
-            self.date_start_var.set(today.strftime('%Y-%m-%d'))
-            self.date_end_var.set(today.strftime('%Y-%m-%d'))
+            self.date_start_var.set(today.strftime('%d/%m/%Y'))
+            self.date_end_var.set(today.strftime('%d/%m/%Y'))
 
         elif report_type == 'settimanale':
             # Lunedì di questa settimana
             monday = today - timedelta(days=today.weekday())
             sunday = monday + timedelta(days=6)
-            self.date_start_var.set(monday.strftime('%Y-%m-%d'))
-            self.date_end_var.set(sunday.strftime('%Y-%m-%d'))
+            self.date_start_var.set(monday.strftime('%d/%m/%Y'))
+            self.date_end_var.set(sunday.strftime('%d/%m/%Y'))
 
         elif report_type == 'mensile':
             # Primo e ultimo giorno del mese
@@ -180,8 +180,8 @@ class RiepilogoScreen(ttk.Frame):
                 last_day = today.replace(day=31)
             else:
                 last_day = (today.replace(month=today.month + 1, day=1) - timedelta(days=1))
-            self.date_start_var.set(first_day.strftime('%Y-%m-%d'))
-            self.date_end_var.set(last_day.strftime('%Y-%m-%d'))
+            self.date_start_var.set(first_day.strftime('%d/%m/%Y'))
+            self.date_end_var.set(last_day.strftime('%d/%m/%Y'))
 
     def generate_report(self):
         """Genera il report"""
@@ -189,9 +189,9 @@ class RiepilogoScreen(ttk.Frame):
             from models.operatore import Operatore
             from utils.capability_calculator import CapabilityCalculator
 
-            # Parse date
-            data_inizio = datetime.strptime(self.date_start_var.get(), '%Y-%m-%d')
-            data_fine = datetime.strptime(self.date_end_var.get(), '%Y-%m-%d')
+            # Parse date (da formato italiano dd/mm/yyyy)
+            data_inizio = datetime.strptime(self.date_start_var.get(), '%d/%m/%Y')
+            data_fine = datetime.strptime(self.date_end_var.get(), '%d/%m/%Y')
 
             if data_fine < data_inizio:
                 messagebox.showwarning("Attenzione", "La data fine deve essere >= data inizio")
