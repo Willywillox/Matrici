@@ -18,6 +18,7 @@ from gui.cambio_turno_dialog import CambioTurnoDialog
 from gui.capability_dashboard import CapabilityDashboard
 from gui.riepilogo_screen import RiepilogoScreen
 from gui.erlang_config_tab import ErlangConfigTab
+from gui.templates_tab import TemplatesTab
 
 
 class MatriciApp:
@@ -169,6 +170,10 @@ class MatriciApp:
         # Tab 5: ERLANG CONFIG
         self.tab_erlang = ErlangConfigTab(self.notebook, self.db_manager)
         self.notebook.add(self.tab_erlang, text='⚙️ Erlang Config')
+
+        # Tab 6: TEMPLATES
+        self.tab_templates = TemplatesTab(self.notebook, self.db_manager)
+        self.notebook.add(self.tab_templates, text='📥 Templates')
 
     def setup_anagrafica_tab(self):
         """Setup tab anagrafica operatori"""
