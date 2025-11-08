@@ -5,19 +5,61 @@ from datetime import datetime, time, timedelta
 from typing import List, Dict, Tuple
 from collections import defaultdict
 import pandas as pd
+from utils.erlang_calculator import ErlangCalculator
 
 
 class CapabilityCalculator:
     """Calcola la capability degli operatori per fasce orarie"""
 
-    def __init__(self, operatori: List, forecast: List = None):
+    def __init__(self, operatori: List, forecast: List = None, db_manager=None):
         """
         Args:
             operatori: Lista di oggetti Operatore
             forecast: Lista di dict con forecast (opzionale)
+            db_manager: DatabaseManager per caricare config Erlang (opzionale)
         """
         self.operatori = operatori
         self.forecast = forecast or []
+        self.db_manager = db_manager
+        self.erlang_calculator = ErlangCalculator()
+        self.erlang_configs = self._load_erlang_configs() if db_manager else {}
+
+    def _load_erlang_configs(self) -> Dict:
+        """Carica configurazioni Erlang C per skill"""
+        configs = {}
+
+        try:
+            if not self.db_manager:
+                return configs
+
+            # Assicurati che il DB sia connesso
+            if not hasattr(self.db_manager, 'conn') or self.db_manager.conn is None:
+                self.db_manager.connect()
+
+            result = self.db_manager.execute_query("""
+                SELECT Skill, AHT_Seconds, Tempo_Pausa_Minuti, Shrinkage,
+                       Service_Level_Target, Service_Level_Seconds,
+                       Occupancy_Target, Interval_Minutes
+                FROM Erlang_Config
+            """)
+
+            if result:
+                for row in result:
+                    skill = row[0]
+                    configs[skill] = {
+                        'aht_seconds': row[1],
+                        'tempo_pausa_minuti': row[2],
+                        'shrinkage': row[3],
+                        'service_level_target': row[4],
+                        'service_level_seconds': row[5],
+                        'occupancy_target': row[6],
+                        'interval_minutes': row[7]
+                    }
+
+        except Exception as e:
+            print(f"Avviso: Impossibile caricare configurazioni Erlang: {e}")
+
+        return configs
 
     def genera_fasce_orarie(self, data: datetime, intervallo_minuti: int = 15) -> List[datetime]:
         """
@@ -153,6 +195,18 @@ class CapabilityCalculator:
         df_merged['FTE_Richiesti'].fillna(0, inplace=True)
         df_merged['Produttivita_Target'].fillna(1, inplace=True)
 
+        # === CALCOLO ERLANG C ===
+        # Se abbiamo configurazione Erlang e volumi previsti, ricalcola FTE_Richiesti
+        if self.erlang_configs:
+            df_merged['FTE_Richiesti'] = df_merged.apply(
+                lambda row: self._calculate_required_fte_erlang(
+                    row['Skill'],
+                    row['Volumi_Attesi'],
+                    row['FTE_Richiesti']  # Fallback se Erlang non disponibile
+                ),
+                axis=1
+            )
+
         df_merged['Delta_FTE'] = df_merged['FTE_Effettivi'] - df_merged['FTE_Richiesti']
 
         # Calcola copertura percentuale
@@ -163,6 +217,45 @@ class CapabilityCalculator:
         )
 
         return df_merged
+
+    def _calculate_required_fte_erlang(self, skill: str, volumi: float, fallback_fte: float) -> float:
+        """
+        Calcola FTE richiesti usando Erlang C
+
+        Args:
+            skill: Skill/coda
+            volumi: Volumi previsti (chiamate/contatti)
+            fallback_fte: Valore di fallback se Erlang non configurato
+
+        Returns:
+            FTE richiesti calcolati con Erlang C
+        """
+        # Se non ci sono volumi, ritorna 0
+        if volumi <= 0:
+            return 0
+
+        # Se non abbiamo config per questa skill, usa fallback
+        if skill not in self.erlang_configs:
+            return fallback_fte
+
+        config = self.erlang_configs[skill]
+
+        # Calcola FTE usando Erlang C
+        try:
+            fte_richiesti = self.erlang_calculator.required_fte(
+                calls_per_interval=volumi,
+                aht_seconds=config['aht_seconds'],
+                service_level_target=config['service_level_target'],
+                target_seconds=config['service_level_seconds'],
+                shrinkage=config['shrinkage'],
+                interval_minutes=config['interval_minutes']
+            )
+
+            return fte_richiesti
+
+        except Exception as e:
+            print(f"Errore calcolo Erlang per skill {skill}: {e}")
+            return fallback_fte
 
     def calcola_rendiconto_per_servizio(
         self,

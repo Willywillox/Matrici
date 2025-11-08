@@ -134,6 +134,23 @@ class DatabaseCreator:
                 )
             """)
 
+            # Tabella Erlang_Config (configurazione parametri Erlang C per skill)
+            cursor.execute("""
+                CREATE TABLE Erlang_Config (
+                    ID AUTOINCREMENT PRIMARY KEY,
+                    Skill TEXT(100) UNIQUE NOT NULL,
+                    AHT_Seconds INTEGER DEFAULT 180,
+                    Tempo_Pausa_Minuti INTEGER DEFAULT 0,
+                    Shrinkage DOUBLE DEFAULT 0.30,
+                    Service_Level_Target DOUBLE DEFAULT 0.80,
+                    Service_Level_Seconds INTEGER DEFAULT 20,
+                    Occupancy_Target DOUBLE DEFAULT 0.85,
+                    Interval_Minutes INTEGER DEFAULT 30,
+                    Note TEXT(255),
+                    Data_Aggiornamento DATETIME DEFAULT Now()
+                )
+            """)
+
             # Tabella Storico Turni (per mantenere storico)
             cursor.execute("""
                 CREATE TABLE Storico_Turni (
@@ -266,6 +283,22 @@ class DatabaseCreator:
                 Ora_Inizio_Spezzato TEXT,
                 Ora_Fine_Spezzato TEXT,
                 Note TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Erlang_Config (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Skill TEXT UNIQUE NOT NULL,
+                AHT_Seconds INTEGER DEFAULT 180,
+                Tempo_Pausa_Minuti INTEGER DEFAULT 0,
+                Shrinkage REAL DEFAULT 0.30,
+                Service_Level_Target REAL DEFAULT 0.80,
+                Service_Level_Seconds INTEGER DEFAULT 20,
+                Occupancy_Target REAL DEFAULT 0.85,
+                Interval_Minutes INTEGER DEFAULT 30,
+                Note TEXT,
+                Data_Aggiornamento TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
 

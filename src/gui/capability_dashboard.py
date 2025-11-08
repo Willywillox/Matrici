@@ -200,8 +200,8 @@ class CapabilityDashboard(ttk.Frame):
 
             self.db_manager.close()
 
-            # Calcola capability
-            calculator = CapabilityCalculator(operatori, forecast)
+            # Calcola capability (passa db_manager per Erlang C)
+            calculator = CapabilityCalculator(operatori, forecast, db_manager=self.db_manager)
             df_capability = calculator.calcola_capability_per_fascia(data, intervallo)
 
             # Salva per export
