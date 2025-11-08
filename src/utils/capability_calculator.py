@@ -40,7 +40,7 @@ class CapabilityCalculator:
 
             result = self.db_manager.execute_query("""
                 SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
-                       Shrinkage, Produttivita, Service_Level_Target, Service_Level_Seconds,
+                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes
                 FROM Erlang_Config
             """)
@@ -54,12 +54,11 @@ class CapabilityCalculator:
                         'concurrency': row[3],
                         'tempo_pausa_minuti': row[4],
                         'shrinkage': row[5],
-                        'produttivita': row[6],
-                        'service_level_target': row[7],
-                        'service_level_seconds': row[8],
-                        'asa_target_seconds': row[9],
-                        'occupancy_target': row[10],
-                        'interval_minutes': row[11]
+                        'service_level_target': row[6],
+                        'service_level_seconds': row[7],
+                        'asa_target_seconds': row[8],
+                        'occupancy_target': row[9],
+                        'interval_minutes': row[10]
                     }
 
         except Exception as e:
@@ -317,15 +316,17 @@ class CapabilityCalculator:
 
     def _calculate_required_fte_erlang(self, skill: str, volumi: float, fallback_fte: float) -> float:
         """
-        Calcola FTE richiesti usando Erlang C
+        Calcola FTE richiesti usando la produttività calcolata
+
+        Formula: Agenti richiesti = Volume / (Produttività × frazione_ora)
 
         Args:
             skill: Skill/coda
-            volumi: Volumi previsti (chiamate/contatti)
+            volumi: Volumi previsti (chiamate/contatti) nella fascia
             fallback_fte: Valore di fallback se Erlang non configurato
 
         Returns:
-            FTE richiesti calcolati con Erlang C
+            FTE richiesti calcolati con produttività
         """
         # Se non ci sono volumi, ritorna 0
         if volumi <= 0:
@@ -337,23 +338,24 @@ class CapabilityCalculator:
 
         config = self.erlang_configs[skill]
 
-        # Calcola FTE usando Erlang C
-        try:
-            fte_richiesti = self.erlang_calculator.required_fte(
-                calls_per_interval=volumi,
-                aht_seconds=config['aht_seconds'],
-                service_level_target=config['service_level_target'],
-                target_seconds=config['service_level_seconds'],
-                shrinkage=config['shrinkage'],
-                interval_minutes=config['interval_minutes'],
-                concurrency=config.get('concurrency', 1)
-            )
+        # Calcola produttività oraria usando shrinkage, occupancy e AHT
+        produttivita_oraria = self._calculate_produttivita(skill)
 
-            return fte_richiesti
+        # Determina la frazione di ora per questa fascia
+        interval_minutes = config.get('interval_minutes', 15)
+        frazione_ora = interval_minutes / 60.0
 
-        except Exception as e:
-            print(f"Errore calcolo Erlang per skill {skill}: {e}")
-            return fallback_fte
+        # Calcola agenti richiesti
+        # Volume / (Produttività × frazione_ora) = Agenti necessari
+        produttivita_fascia = produttivita_oraria * frazione_ora
+
+        if produttivita_fascia > 0:
+            agenti_richiesti = volumi / produttivita_fascia
+        else:
+            # Fallback se produttività è zero
+            agenti_richiesti = fallback_fte
+
+        return agenti_richiesti
 
     def _calculate_required_agents_from_fte(self, skill: str, fte_richiesti: float) -> int:
         """
@@ -387,6 +389,34 @@ class CapabilityCalculator:
             # Senza configurazione, approssima
             return math.ceil(fte_richiesti)
 
+    def _calculate_produttivita(self, skill: str) -> float:
+        """
+        Calcola la produttività (chiamate/ora) per uno skill usando Erlang C
+
+        Formula: Produttività = 3600 × (1 - shrinkage) × (1 - occupancy) / AHT_secondi
+
+        Args:
+            skill: Nome dello skill
+
+        Returns:
+            Produttività in chiamate/ora
+        """
+        if skill in self.erlang_configs:
+            config = self.erlang_configs[skill]
+            aht_seconds = config.get('aht_seconds', 180)
+            shrinkage = config.get('shrinkage', 0.30)
+            occupancy_target = config.get('occupancy_target', 0.85)
+
+            if aht_seconds > 0:
+                produttivita = 3600.0 * (1 - shrinkage) * (1 - occupancy_target) / aht_seconds
+            else:
+                produttivita = 20.0 * (1 - shrinkage) * (1 - occupancy_target)
+
+            return produttivita
+        else:
+            # Default: 20 chiamate/ora con 30% shrinkage e 85% occupancy
+            return 20.0 * 0.70 * 0.15
+
     def _calculate_gestibile_chiamate(self, skill: str, operatori_produzione: int, produttivita_target: float) -> int:
         """
         Calcola il numero di chiamate gestibili dagli operatori in produzione
@@ -394,7 +424,7 @@ class CapabilityCalculator:
         Args:
             skill: Nome dello skill
             operatori_produzione: Numero di operatori in produzione
-            produttivita_target: Produttività target dal forecast (chiamate/ora per operatore)
+            produttivita_target: Produttività target dal forecast (chiamate/ora per operatore) - usato solo come fallback
 
         Returns:
             Numero totale di chiamate gestibili nella fascia oraria
@@ -402,33 +432,19 @@ class CapabilityCalculator:
         if operatori_produzione <= 0:
             return 0
 
-        # Usa produttività da configurazione Erlang se disponibile, altrimenti usa quella del forecast
+        # Calcola produttività oraria usando Erlang C (shrinkage + occupancy + AHT)
+        produttivita_oraria = self._calculate_produttivita(skill)
+
+        # Determina la frazione di ora per questa fascia
         if skill in self.erlang_configs:
-            config = self.erlang_configs[skill]
-            aht_seconds = config.get('aht_seconds', 180)  # Default 3 minuti
-            interval_minutes = config.get('interval_minutes', 15)
-
-            # Calcola produttività oraria da AHT
-            # AHT in secondi -> Chiamate all'ora = 3600 / AHT
-            chiamate_ora_per_operatore = 3600.0 / aht_seconds if aht_seconds > 0 else 20.0
-
-            # Frazione di ora per questa fascia
-            frazione_ora = interval_minutes / 60.0
-
-            # Chiamate gestibili = Operatori * Chiamate/ora * Frazione_ora
-            chiamate_gestibili = operatori_produzione * chiamate_ora_per_operatore * frazione_ora
+            interval_minutes = self.erlang_configs[skill].get('interval_minutes', 15)
         else:
-            # Usa produttività dal forecast o default
-            # Assumiamo che produttivita_target sia chiamate/ora se > 1, altrimenti un fattore
-            if produttivita_target > 1:
-                chiamate_ora_per_operatore = produttivita_target
-            else:
-                chiamate_ora_per_operatore = 20.0  # Default: 20 chiamate/ora (3 min AHT)
+            interval_minutes = 15  # Default: 15 minuti
 
-            # Assumiamo fascia di 15 minuti se non abbiamo config
-            frazione_ora = 15 / 60.0
+        frazione_ora = interval_minutes / 60.0
 
-            chiamate_gestibili = operatori_produzione * chiamate_ora_per_operatore * frazione_ora
+        # Chiamate gestibili = Operatori * Produttività/ora * Frazione_ora
+        chiamate_gestibili = operatori_produzione * produttivita_oraria * frazione_ora
 
         return int(round(chiamate_gestibili))
 
