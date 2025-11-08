@@ -37,7 +37,7 @@ class DatabaseCreator:
                     ID AUTOINCREMENT PRIMARY KEY,
                     Nome TEXT(50) NOT NULL,
                     Cognome TEXT(50) NOT NULL,
-                    ID_SAP TEXT(20) UNIQUE NOT NULL,
+                    ID_SAP TEXT(20) NOT NULL,
                     Tipo_Contratto TEXT(50),
                     FTE DOUBLE,
                     Ore_Settimana DOUBLE,
@@ -79,7 +79,8 @@ class DatabaseCreator:
                     Fine_Giust_5 DATETIME,
                     Etichetta_Skill TEXT(100),
                     Data_Riferimento DATETIME NOT NULL,
-                    Postazione TEXT(20)
+                    Postazione TEXT(20),
+                    CONSTRAINT UC_Operatore_Data UNIQUE (ID_SAP, Data_Riferimento)
                 )
             """)
 
@@ -196,7 +197,7 @@ class DatabaseCreator:
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 Nome TEXT NOT NULL,
                 Cognome TEXT NOT NULL,
-                ID_SAP TEXT UNIQUE NOT NULL,
+                ID_SAP TEXT NOT NULL,
                 Tipo_Contratto TEXT,
                 FTE REAL,
                 Ore_Settimana REAL,
@@ -238,7 +239,8 @@ class DatabaseCreator:
                 Fine_Giust_5 TEXT,
                 Etichetta_Skill TEXT,
                 Data_Riferimento TEXT NOT NULL,
-                Postazione TEXT
+                Postazione TEXT,
+                UNIQUE (ID_SAP, Data_Riferimento)
             )
         """)
 
