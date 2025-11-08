@@ -37,9 +37,9 @@ class CapabilityCalculator:
                 self.db_manager.connect()
 
             result = self.db_manager.execute_query("""
-                SELECT Skill, AHT_Seconds, Tempo_Pausa_Minuti, Shrinkage,
-                       Service_Level_Target, Service_Level_Seconds,
-                       Occupancy_Target, Interval_Minutes
+                SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
+                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes
                 FROM Erlang_Config
             """)
 
@@ -47,13 +47,16 @@ class CapabilityCalculator:
                 for row in result:
                     skill = row[0]
                     configs[skill] = {
-                        'aht_seconds': row[1],
-                        'tempo_pausa_minuti': row[2],
-                        'shrinkage': row[3],
-                        'service_level_target': row[4],
-                        'service_level_seconds': row[5],
-                        'occupancy_target': row[6],
-                        'interval_minutes': row[7]
+                        'tipo_canale': row[1],
+                        'aht_seconds': row[2],
+                        'concurrency': row[3],
+                        'tempo_pausa_minuti': row[4],
+                        'shrinkage': row[5],
+                        'service_level_target': row[6],
+                        'service_level_seconds': row[7],
+                        'asa_target_seconds': row[8],
+                        'occupancy_target': row[9],
+                        'interval_minutes': row[10]
                     }
 
         except Exception as e:
@@ -248,7 +251,8 @@ class CapabilityCalculator:
                 service_level_target=config['service_level_target'],
                 target_seconds=config['service_level_seconds'],
                 shrinkage=config['shrinkage'],
-                interval_minutes=config['interval_minutes']
+                interval_minutes=config['interval_minutes'],
+                concurrency=config.get('concurrency', 1)
             )
 
             return fte_richiesti

@@ -17,6 +17,7 @@ from gui.quick_edit_dialog import QuickEditDialog
 from gui.cambio_turno_dialog import CambioTurnoDialog
 from gui.capability_dashboard import CapabilityDashboard
 from gui.riepilogo_screen import RiepilogoScreen
+from gui.erlang_config_tab import ErlangConfigTab
 
 
 class MatriciApp:
@@ -164,6 +165,10 @@ class MatriciApp:
         self.tab_forecast = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_forecast, text='🎯 Forecast')
         self.setup_forecast_tab()
+
+        # Tab 5: ERLANG CONFIG
+        self.tab_erlang = ErlangConfigTab(self.notebook, self.db_manager)
+        self.notebook.add(self.tab_erlang, text='⚙️ Erlang Config')
 
     def setup_anagrafica_tab(self):
         """Setup tab anagrafica operatori"""

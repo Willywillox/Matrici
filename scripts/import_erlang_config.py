@@ -58,8 +58,7 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
 
     # Verifica colonne obbligatorie
     required_cols = [
-        'Skill', 'AHT_Seconds', 'Shrinkage',
-        'Service_Level_Target', 'Service_Level_Seconds'
+        'Skill', 'Tipo_Canale', 'AHT_Seconds', 'Concurrency', 'Shrinkage'
     ]
     missing_cols = [col for col in required_cols if col not in df.columns]
 
@@ -96,10 +95,17 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                     continue
 
                 skill = str(row['Skill']).strip()
+                tipo_canale = str(row.get('Tipo_Canale', 'Voice')).strip()
                 aht_seconds = int(row['AHT_Seconds'])
+                concurrency = int(row.get('Concurrency', 1)) if pd.notna(row.get('Concurrency')) else 1
                 shrinkage = float(row['Shrinkage'])
-                sl_target = float(row['Service_Level_Target'])
-                sl_seconds = int(row['Service_Level_Seconds'])
+
+                # Service Level (per Voice/Email)
+                sl_target = float(row.get('Service_Level_Target', 0.80)) if pd.notna(row.get('Service_Level_Target')) else 0.80
+                sl_seconds = int(row.get('Service_Level_Seconds', 20)) if pd.notna(row.get('Service_Level_Seconds')) else 20
+
+                # ASA (per Chat)
+                asa_seconds = int(row.get('ASA_Target_Seconds', 60)) if pd.notna(row.get('ASA_Target_Seconds')) else 60
 
                 # Campi opzionali
                 tempo_pausa = int(row.get('Tempo_Pausa_Minuti', 0)) if pd.notna(row.get('Tempo_Pausa_Minuti')) else 0
@@ -123,6 +129,11 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                     skipped += 1
                     continue
 
+                if concurrency < 1:
+                    print(f"  ⚠️  Riga {idx+2}: Concurrency deve essere almeno 1, skip")
+                    skipped += 1
+                    continue
+
                 # Verifica se configurazione esiste
                 existing = db_manager.execute_query(
                     "SELECT ID FROM Erlang_Config WHERE Skill = ?",
@@ -133,43 +144,50 @@ def import_erlang_config(excel_file, db_path='data/operator_overtime.db'):
                     # Update configurazione esistente
                     query = """
                         UPDATE Erlang_Config
-                        SET AHT_Seconds = ?,
-                            Tempo_Pausa_Minuti = ?,
-                            Shrinkage = ?,
-                            Service_Level_Target = ?,
-                            Service_Level_Seconds = ?,
-                            Occupancy_Target = ?,
-                            Interval_Minutes = ?,
-                            Note = ?
+                        SET Tipo_Canale = ?, AHT_Seconds = ?, Concurrency = ?,
+                            Tempo_Pausa_Minuti = ?, Shrinkage = ?,
+                            Service_Level_Target = ?, Service_Level_Seconds = ?,
+                            ASA_Target_Seconds = ?, Occupancy_Target = ?,
+                            Interval_Minutes = ?, Note = ?
                         WHERE Skill = ?
                     """
                     db_manager.execute_update(query, (
-                        aht_seconds, tempo_pausa, shrinkage,
-                        sl_target, sl_seconds, occupancy,
-                        interval, note, skill
+                        tipo_canale, aht_seconds, concurrency,
+                        tempo_pausa, shrinkage,
+                        sl_target, sl_seconds, asa_seconds,
+                        occupancy, interval, note, skill
                     ))
 
                     print(f"  ↻ '{skill}': Configurazione aggiornata")
-                    print(f"      AHT={aht_seconds}s, Shrinkage={shrinkage*100}%, SL={sl_target*100}%/{sl_seconds}s")
+                    if tipo_canale == 'Chat':
+                        print(f"      {tipo_canale}, AHT={aht_seconds}s, Concurr={concurrency}, Shrinkage={shrinkage*100}%, ASA={asa_seconds}s")
+                    else:
+                        print(f"      {tipo_canale}, AHT={aht_seconds}s, Shrinkage={shrinkage*100}%, SL={sl_target*100}%/{sl_seconds}s")
                     updated += 1
 
                 else:
                     # Insert nuova configurazione
                     query = """
                         INSERT INTO Erlang_Config (
-                            Skill, AHT_Seconds, Tempo_Pausa_Minuti,
-                            Shrinkage, Service_Level_Target, Service_Level_Seconds,
-                            Occupancy_Target, Interval_Minutes, Note
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            Skill, Tipo_Canale, AHT_Seconds, Concurrency,
+                            Tempo_Pausa_Minuti, Shrinkage,
+                            Service_Level_Target, Service_Level_Seconds,
+                            ASA_Target_Seconds, Occupancy_Target,
+                            Interval_Minutes, Note
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """
                     db_manager.execute_update(query, (
-                        skill, aht_seconds, tempo_pausa,
-                        shrinkage, sl_target, sl_seconds,
+                        skill, tipo_canale, aht_seconds, concurrency,
+                        tempo_pausa, shrinkage,
+                        sl_target, sl_seconds, asa_seconds,
                         occupancy, interval, note
                     ))
 
                     print(f"  ✓ '{skill}': Nuova configurazione")
-                    print(f"      AHT={aht_seconds}s, Shrinkage={shrinkage*100}%, SL={sl_target*100}%/{sl_seconds}s")
+                    if tipo_canale == 'Chat':
+                        print(f"      {tipo_canale}, AHT={aht_seconds}s, Concurr={concurrency}, Shrinkage={shrinkage*100}%, ASA={asa_seconds}s")
+                    else:
+                        print(f"      {tipo_canale}, AHT={aht_seconds}s, Shrinkage={shrinkage*100}%, SL={sl_target*100}%/{sl_seconds}s")
                     imported += 1
 
             except ValueError as e:
@@ -217,23 +235,27 @@ def list_current_configs(db_path='data/operator_overtime.db'):
         db_manager.connect()
 
         configs = db_manager.execute_query("""
-            SELECT Skill, AHT_Seconds, Shrinkage,
-                   Service_Level_Target, Service_Level_Seconds,
-                   Occupancy_Target, Interval_Minutes
+            SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency,
+                   Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                   ASA_Target_Seconds, Occupancy_Target, Interval_Minutes
             FROM Erlang_Config
-            ORDER BY Skill
+            ORDER BY Tipo_Canale, Skill
         """)
 
         if not configs:
             print("Nessuna configurazione trovata\n")
             return
 
-        print(f"{'Skill':<25} {'AHT':>8} {'Shr%':>6} {'SL%':>6} {'SLs':>5} {'Occ%':>6} {'Int':>5}")
-        print(f"{'-'*70}")
+        print(f"{'Skill':<28} {'Canale':<8} {'AHT':>6} {'Conc':>5} {'Shr%':>5} {'SL%/ASA':>9} {'Occ%':>5} {'Int':>5}")
+        print(f"{'-'*80}")
 
         for cfg in configs:
-            skill, aht, shr, slt, sls, occ, interval = cfg
-            print(f"{skill:<25} {aht:>6}s {shr*100:>5.0f}% {slt*100:>5.0f}% {sls:>4}s {occ*100:>5.0f}% {interval:>4}m")
+            skill, canale, aht, conc, shr, slt, sls, asa, occ, interval = cfg
+            if canale == 'Chat':
+                target_display = f"ASA:{asa}s"
+            else:
+                target_display = f"{slt*100:.0f}%/{sls}s"
+            print(f"{skill:<28} {canale:<8} {aht:>5}s {conc:>5} {shr*100:>4.0f}% {target_display:>9} {occ*100:>4.0f}% {interval:>4}m")
 
         print(f"\nTotale: {len(configs)} configurazioni")
         print(f"{'='*70}\n")
@@ -253,10 +275,13 @@ if __name__ == '__main__':
         print("  python import_erlang_config.py --list")
         print("\nIl file Excel deve contenere sheet 'Erlang_Config' con colonne:")
         print("  - Skill (obbligatorio)")
+        print("  - Tipo_Canale (obbligatorio: Voice/Chat/Email)")
         print("  - AHT_Seconds (obbligatorio)")
+        print("  - Concurrency (obbligatorio, ≥1, tipicamente >1 per Chat)")
         print("  - Shrinkage (obbligatorio, 0-1)")
-        print("  - Service_Level_Target (obbligatorio, 0-1)")
-        print("  - Service_Level_Seconds (obbligatorio)")
+        print("  - Service_Level_Target (opzionale, 0-1, per Voice/Email)")
+        print("  - Service_Level_Seconds (opzionale, per Voice/Email)")
+        print("  - ASA_Target_Seconds (opzionale, per Chat)")
         print("  - Tempo_Pausa_Minuti (opzionale)")
         print("  - Occupancy_Target (opzionale)")
         print("  - Interval_Minutes (opzionale)")

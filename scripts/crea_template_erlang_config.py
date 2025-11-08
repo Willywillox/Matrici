@@ -21,24 +21,43 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
         output_file: Nome file output
     """
 
-    # Dati di esempio
+    # Dati di esempio (Voice + Chat)
     config_data = {
         'Skill': [
-            'CUSTOMER_CARE',
+            'CUSTOMER_CARE_VOICE',
+            'CUSTOMER_CARE_CHAT',
             'BACK_OFFICE',
             'TECHNICAL_SUPPORT',
-            'SALES',
+            'SALES_CHAT',
             ''
         ],
+        'Tipo_Canale': [
+            'Voice',
+            'Chat',
+            'Email',
+            'Voice',
+            'Chat',
+            'Voice'
+        ],
         'AHT_Seconds': [
-            180,   # 3 minuti
-            240,   # 4 minuti
+            180,   # 3 minuti voice
+            240,   # 4 minuti chat
+            360,   # 6 minuti email
             300,   # 5 minuti
-            150,   # 2.5 minuti
+            180,   # 3 minuti chat
             180
+        ],
+        'Concurrency': [
+            1,     # Voice: sempre 1
+            3,     # Chat: 3 chat simultanee
+            1,     # Email: 1
+            1,     # Voice: 1
+            4,     # Chat: 4 chat simultanee
+            1
         ],
         'Tempo_Pausa_Minuti': [
             0,     # Pause gestite separatamente
+            0,
             0,
             0,
             0,
@@ -46,30 +65,42 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
         ],
         'Shrinkage': [
             0.30,  # 30% (pause, formazione, riunioni, ecc.)
+            0.28,  # 28% chat
             0.25,  # 25%
             0.30,  # 30%
-            0.28,  # 28%
+            0.27,  # 27%
             0.30
         ],
         'Service_Level_Target': [
-            0.80,  # 80% delle chiamate
+            0.80,  # 80% delle chiamate (per voice)
+            0.80,  # Per chat usa ASA
             0.75,  # 75%
             0.80,  # 80%
-            0.85,  # 85%
+            0.80,  # Per chat usa ASA
             0.80
         ],
         'Service_Level_Seconds': [
+            20,    # Entro 20 secondi (voice)
+            20,    # Ignorato per chat
+            14400, # 4 ore per email
             20,    # Entro 20 secondi
-            30,    # Entro 30 secondi
-            20,    # Entro 20 secondi
-            15,    # Entro 15 secondi
+            15,    # Ignorato per chat
             20
+        ],
+        'ASA_Target_Seconds': [
+            0,     # Ignorato per voice
+            60,    # 60s tempo prima risposta chat
+            0,     # Ignorato per email
+            0,     # Ignorato per voice
+            45,    # 45s tempo prima risposta chat
+            0
         ],
         'Occupancy_Target': [
             0.85,  # 85% occupancy
+            0.80,  # 80% chat
             0.80,  # 80%
             0.85,  # 85%
-            0.87,  # 87%
+            0.82,  # 82% chat
             0.85
         ],
         'Interval_Minutes': [
@@ -77,13 +108,15 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
             30,
             30,
             30,
+            30,
             30
         ],
         'Note': [
-            'Assistenza clienti standard',
-            'Attività back office (email, pratiche)',
+            'Assistenza clienti telefono',
+            'Assistenza clienti chat con 3 chat simultanee',
+            'Attività back office email',
             'Supporto tecnico avanzato',
-            'Vendite outbound e inbound',
+            'Vendite chat con 4 chat simultanee',
             ''
         ]
     }
@@ -111,15 +144,18 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
 
         # Larghezza colonne
         column_widths = {
-            'A': 25,  # Skill
-            'B': 18,  # AHT_Seconds
-            'C': 22,  # Tempo_Pausa_Minuti
-            'D': 15,  # Shrinkage
-            'E': 22,  # Service_Level_Target
-            'F': 25,  # Service_Level_Seconds
-            'G': 20,  # Occupancy_Target
-            'H': 20,  # Interval_Minutes
-            'I': 40   # Note
+            'A': 28,  # Skill
+            'B': 15,  # Tipo_Canale
+            'C': 18,  # AHT_Seconds
+            'D': 15,  # Concurrency
+            'E': 22,  # Tempo_Pausa_Minuti
+            'F': 15,  # Shrinkage
+            'G': 22,  # Service_Level_Target
+            'H': 25,  # Service_Level_Seconds
+            'I': 20,  # ASA_Target_Seconds
+            'J': 20,  # Occupancy_Target
+            'K': 20,  # Interval_Minutes
+            'L': 50   # Note
         }
 
         for col, width in column_widths.items():
@@ -133,10 +169,21 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
                 '',
                 'Skill: Codice skill/coda (deve corrispondere a Skills configurati)',
                 '',
+                'Tipo_Canale: Tipo di canale (Voice/Chat/Email)',
+                '  - Voice: Telefonia tradizionale, concurrency = 1',
+                '  - Chat: Chat testuale, concurrency > 1 (chat simultanee)',
+                '  - Email: Email, concurrency = 1',
+                '',
                 'AHT_Seconds: Average Handle Time in secondi',
                 '  - Tempo medio gestione chiamata/contatto',
                 '  - Include tempo conversazione + after call work',
-                '  - Esempio: 180 = 3 minuti',
+                '  - Esempio Voice: 180 = 3 minuti',
+                '  - Esempio Chat: 240 = 4 minuti',
+                '',
+                'Concurrency: Chat simultanee per agente',
+                '  - Voice/Email: sempre 1',
+                '  - Chat: tipicamente 2-5 (quante chat gestite contemporaneamente)',
+                '  - Esempio: 3 = agente gestisce 3 chat in parallelo',
                 '',
                 'Tempo_Pausa_Minuti: Minuti pausa per ora (normalmente 0)',
                 '  - Pause gestite separatamente nello shrinkage',
@@ -147,20 +194,29 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
                 '  - Esempio: 0.30 = 30% del tempo non produttivo',
                 '  - Tipicamente tra 25% e 35%',
                 '',
-                'Service_Level_Target: Target Service Level (0-1)',
+                'Service_Level_Target: Target Service Level (0-1) [per Voice/Email]',
                 '  - Percentuale chiamate da rispondere entro target',
                 '  - Esempio: 0.80 = 80% delle chiamate',
-                '  - Standard: 0.80 (80/20)',
+                '  - Standard Voice: 0.80 (80/20)',
+                '  - Per Chat: questo parametro viene ignorato, usa ASA',
                 '',
-                'Service_Level_Seconds: Secondi target risposta',
+                'Service_Level_Seconds: Secondi target risposta [per Voice/Email]',
                 '  - Tempo massimo attesa per Service Level',
-                '  - Esempio: 20 = entro 20 secondi',
-                '  - Standard: 20 secondi (80/20 rule)',
+                '  - Voice: tipicamente 20 secondi',
+                '  - Email: tipicamente 14400 (4 ore)',
+                '  - Per Chat: ignorato',
+                '',
+                'ASA_Target_Seconds: Average Speed to Answer target [per Chat]',
+                '  - Tempo medio entro cui rispondere alla prima risposta',
+                '  - Solo per Chat, esempio: 60 = rispondere entro 1 minuto mediamente',
+                '  - Tipicamente 30-90 secondi per chat',
+                '  - Per Voice/Email: lasciare a 0',
                 '',
                 'Occupancy_Target: Target occupancy agenti (0-1)',
                 '  - Percentuale tempo in chiamata/lavoro',
                 '  - Esempio: 0.85 = 85% occupati',
-                '  - Tipicamente tra 80% e 90%',
+                '  - Voice: tipicamente 80-90%',
+                '  - Chat: tipicamente 75-85% (più basso per gestire simultaneità)',
                 '',
                 'Interval_Minutes: Intervallo calcolo in minuti',
                 '  - Tipicamente 30 minuti',
@@ -170,20 +226,37 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
                 '',
                 '=== ESEMPI VALORI TIPICI ===',
                 '',
-                'Customer Care:',
+                'Voice - Customer Care:',
+                '  - Tipo_Canale: Voice',
                 '  - AHT: 180-240 secondi (3-4 minuti)',
+                '  - Concurrency: 1 (sempre)',
                 '  - Shrinkage: 30%',
                 '  - Service Level: 80% in 20 secondi',
+                '  - Occupancy: 85%',
                 '',
-                'Back Office:',
-                '  - AHT: 240-360 secondi (4-6 minuti)',
-                '  - Shrinkage: 25%',
-                '  - Service Level: 75% in 30 secondi',
+                'Chat - Customer Care:',
+                '  - Tipo_Canale: Chat',
+                '  - AHT: 180-300 secondi (3-5 minuti per chat)',
+                '  - Concurrency: 3-4 (chat simultanee)',
+                '  - Shrinkage: 28%',
+                '  - ASA Target: 60 secondi (tempo prima risposta)',
+                '  - Occupancy: 80%',
                 '',
-                'Technical Support:',
+                'Email - Back Office:',
+                '  - Tipo_Canale: Email',
                 '  - AHT: 300-600 secondi (5-10 minuti)',
+                '  - Concurrency: 1',
+                '  - Shrinkage: 25%',
+                '  - Service Level: 75% in 4 ore (14400s)',
+                '  - Occupancy: 80%',
+                '',
+                'Voice - Technical Support:',
+                '  - Tipo_Canale: Voice',
+                '  - AHT: 300-600 secondi (5-10 minuti)',
+                '  - Concurrency: 1',
                 '  - Shrinkage: 30%',
                 '  - Service Level: 80% in 20 secondi',
+                '  - Occupancy: 85%',
                 '',
                 '=== IMPORT ===',
                 '',
@@ -209,15 +282,18 @@ def crea_template_erlang(output_file='template_erlang_config.xlsx'):
     print(f"\n✅ Template creato: {output_file}")
     print("\nColonne create:")
     print("  - Skill: Codice skill/coda")
+    print("  - Tipo_Canale: Voice/Chat/Email")
     print("  - AHT_Seconds: Average Handle Time")
+    print("  - Concurrency: Chat simultanee per agente (1 per Voice)")
     print("  - Tempo_Pausa_Minuti: Minuti pausa/ora")
     print("  - Shrinkage: % tempo non produttivo")
-    print("  - Service_Level_Target: Target % SL")
-    print("  - Service_Level_Seconds: Secondi target risposta")
+    print("  - Service_Level_Target: Target % SL (per Voice/Email)")
+    print("  - Service_Level_Seconds: Secondi target risposta (per Voice/Email)")
+    print("  - ASA_Target_Seconds: Tempo prima risposta (per Chat)")
     print("  - Occupancy_Target: Target occupancy")
     print("  - Interval_Minutes: Intervallo calcolo")
     print("  - Note: Annotazioni")
-    print("\n4 configurazioni di esempio incluse")
+    print("\n5 configurazioni di esempio incluse (Voice + Chat + Email)")
     print("Sheet 'Istruzioni' con guida completa")
     print(f"\nPer importare: python scripts/import_erlang_config.py {output_file}\n")
 

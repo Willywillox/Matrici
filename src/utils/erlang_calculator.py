@@ -177,26 +177,50 @@ class ErlangCalculator:
                     service_level_target: float = 0.80,
                     target_seconds: int = 20,
                     shrinkage: float = 0.30,
-                    interval_minutes: int = 30) -> float:
+                    interval_minutes: int = 30,
+                    concurrency: int = 1) -> float:
         """
-        Calcola FTE richiesti considerando shrinkage
+        Calcola FTE richiesti considerando shrinkage e concurrency
 
         Args:
-            calls_per_interval: Chiamate nell'intervallo
+            calls_per_interval: Chiamate/chat nell'intervallo
             aht_seconds: Average Handle Time
             service_level_target: Service Level target
             target_seconds: Tempo risposta target
             shrinkage: Percentuale shrinkage (0-1)
             interval_minutes: Durata intervallo
+            concurrency: Numero interazioni simultanee per agente (default 1 per voice)
 
         Returns:
-            FTE necessari (con shrinkage applicato)
+            FTE necessari (con shrinkage e concurrency applicati)
         """
-        # Calcola agenti base necessari
-        base_agents = self.required_agents(
-            calls_per_interval, aht_seconds,
-            service_level_target, target_seconds, interval_minutes
-        )
+        # Per chat con concurrency > 1, l'agente può gestire più chat simultaneamente
+        # Quindi il traffic intensity effettivo è ridotto dalla concurrency
+
+        if concurrency > 1:
+            # Con concurrency, calcola gli agenti necessari considerando le chat simultanee
+            # Traffic intensity viene "diviso" dalla concurrency
+            traffic = self.calculate_traffic_intensity(calls_per_interval, aht_seconds, interval_minutes)
+
+            # Con concurrency, ogni agente può gestire N chat, quindi serve traffic/concurrency agenti base
+            # Ma dobbiamo comunque garantire il service level, quindi usiamo formula specifica
+            effective_calls = calls_per_interval / concurrency
+            base_agents = self.required_agents(
+                effective_calls, aht_seconds,
+                service_level_target, target_seconds, interval_minutes
+            )
+
+            # Però l'agente deve comunque avere capacità, quindi aggiungiamo un fattore
+            # Il minimo è ceil(traffic/concurrency) per gestire il carico
+            import math
+            min_agents_for_load = math.ceil(traffic / concurrency)
+            base_agents = max(base_agents, min_agents_for_load)
+        else:
+            # Voice standard (concurrency = 1)
+            base_agents = self.required_agents(
+                calls_per_interval, aht_seconds,
+                service_level_target, target_seconds, interval_minutes
+            )
 
         # Applica shrinkage: FTE = Agents / (1 - Shrinkage)
         if shrinkage >= 1.0:
@@ -230,7 +254,7 @@ class ErlangCalculator:
         Calcola tutti i requisiti per un intervallo temporale
 
         Args:
-            calls: Numero chiamate previste nell'intervallo
+            calls: Numero chiamate/chat previste nell'intervallo
             config: Configurazione parametri (usa default se None)
 
         Returns:
@@ -240,6 +264,7 @@ class ErlangCalculator:
             - required_fte: FTE con shrinkage
             - service_level: SL raggiunto
             - occupancy: Occupancy prevista
+            - concurrency: Concurrency (per chat)
         """
         # Usa config fornita o default
         cfg = config if config else self.default_config
@@ -249,15 +274,23 @@ class ErlangCalculator:
         sl_target = cfg.get('service_level_target', self.default_config['service_level_target'])
         sl_seconds = cfg.get('service_level_seconds', self.default_config['service_level_seconds'])
         interval = cfg.get('interval_minutes', self.default_config['interval_minutes'])
+        concurrency = cfg.get('concurrency', 1)
 
         # Calcola traffic intensity
         traffic = self.calculate_traffic_intensity(calls, aht, interval)
 
-        # Calcola agenti necessari
-        agents = self.required_agents(calls, aht, sl_target, sl_seconds, interval)
+        # Calcola agenti necessari (considera concurrency se > 1)
+        if concurrency > 1:
+            effective_calls = calls / concurrency
+            agents = self.required_agents(effective_calls, aht, sl_target, sl_seconds, interval)
+            import math
+            min_agents_for_load = math.ceil(traffic / concurrency)
+            agents = max(agents, min_agents_for_load)
+        else:
+            agents = self.required_agents(calls, aht, sl_target, sl_seconds, interval)
 
-        # Calcola FTE con shrinkage
-        fte = self.required_fte(calls, aht, sl_target, sl_seconds, shrinkage, interval)
+        # Calcola FTE con shrinkage e concurrency
+        fte = self.required_fte(calls, aht, sl_target, sl_seconds, shrinkage, interval, concurrency)
 
         # Calcola SL effettivo
         sl = self.service_level(agents, traffic, sl_seconds, aht)
@@ -272,7 +305,8 @@ class ErlangCalculator:
             'service_level': round(sl * 100, 2),  # Come percentuale
             'occupancy': round(occupancy * 100, 2),  # Come percentuale
             'calls': calls,
-            'aht_seconds': aht
+            'aht_seconds': aht,
+            'concurrency': concurrency
         }
 
     def calculate_daily_requirements(self,
