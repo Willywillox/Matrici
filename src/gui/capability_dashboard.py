@@ -228,6 +228,9 @@ class CapabilityDashboard(ttk.Frame):
         for item in self.tree.get_children():
             self.tree.delete(item)
 
+        if df is None or df.empty:
+            return
+
         skill_filter = self.skill_var.get()
 
         for _, row in df.iterrows():
@@ -235,62 +238,119 @@ class CapabilityDashboard(ttk.Frame):
             if skill_filter != 'Tutti' and row['Skill'] != skill_filter:
                 continue
 
-            # Estrai dati
-            fascia = row['Fascia_Oraria'].strftime('%H:%M')
-            skill = row['Skill']
-            presenti = int(row['Presenti'])
-            in_pausa = int(row['In_Pausa'])
-            in_prod = int(row['In_Produzione'])
-            in_strao = int(row['In_Straordinario'])
-            fte_eff = row['FTE_Effettivi']
-            fte_rich = row.get('FTE_Richiesti', 0)
-            delta = row.get('Delta_FTE', 0)
-            copertura = row.get('Copertura_%', 100)
+            # Estrai dati con gestione errori
+            try:
+                fascia = row['Fascia_Oraria'].strftime('%H:%M')
+                skill = row['Skill']
+                presenti = int(row['Presenti'])
+                in_pausa = int(row['In_Pausa'])
+                in_prod = int(row['In_Produzione'])
+                in_strao = int(row['In_Straordinario'])
 
-            # Determina stato
-            if copertura >= 95:
-                stato = "🟢 OK"
-                tag = 'ok'
-            elif copertura >= 80:
-                stato = "🟡 Attenzione"
-                tag = 'warning'
-            else:
-                stato = "🔴 Critico"
-                tag = 'critical'
+                # Gestione FTE_Effettivi con fallback
+                fte_eff = row.get('FTE_Effettivi', 0)
+                if fte_eff is None or pd.isna(fte_eff):
+                    fte_eff = 0
 
-            # Inserisci riga
-            values = (
-                fascia, skill, presenti, in_pausa, in_prod, in_strao,
-                f"{fte_eff:.1f}", f"{fte_rich:.1f}", f"{delta:+.1f}",
-                f"{copertura:.0f}%", stato
-            )
+                fte_rich = row.get('FTE_Richiesti', 0)
+                if fte_rich is None or pd.isna(fte_rich):
+                    fte_rich = 0
 
-            self.tree.insert('', 'end', values=values, tags=(tag,))
+                delta = row.get('Delta_FTE', 0)
+                if delta is None or pd.isna(delta):
+                    delta = 0
+
+                copertura = row.get('Copertura_%', 100)
+                if copertura is None or pd.isna(copertura):
+                    copertura = 100
+
+                # Determina stato
+                if copertura >= 95:
+                    stato = "🟢 OK"
+                    tag = 'ok'
+                elif copertura >= 80:
+                    stato = "🟡 Attenzione"
+                    tag = 'warning'
+                else:
+                    stato = "🔴 Critico"
+                    tag = 'critical'
+
+                # Inserisci riga
+                values = (
+                    fascia, skill, presenti, in_pausa, in_prod, in_strao,
+                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", f"{delta:+.1f}",
+                    f"{copertura:.0f}%", stato
+                )
+
+                self.tree.insert('', 'end', values=values, tags=(tag,))
+
+            except Exception as e:
+                print(f"Errore popolamento riga: {e}")
+                continue
 
     def update_summary(self, df):
         """Aggiorna il pannello summary"""
-        total_fte = df['FTE_Effettivi'].sum()
-        required_fte = df.get('FTE_Richiesti', pd.Series([0])).sum()
-        delta_fte = total_fte - required_fte
-        avg_coverage = df.get('Copertura_%', pd.Series([100])).mean()
+        if df is None or df.empty:
+            # Mostra valori di default se non ci sono dati
+            self.summary_labels['total_fte'].config(text="0.0")
+            self.summary_labels['required_fte'].config(text="0.0")
+            self.summary_labels['delta_fte'].config(text="0.0", foreground='#4CAF50')
+            self.summary_labels['coverage'].config(text="--", foreground='#9C27B0')
+            return
 
-        self.summary_labels['total_fte'].config(text=f"{total_fte:.1f}")
-        self.summary_labels['required_fte'].config(text=f"{required_fte:.1f}")
+        try:
+            # Somma FTE effettivi
+            if 'FTE_Effettivi' in df.columns:
+                total_fte = df['FTE_Effettivi'].sum()
+            else:
+                total_fte = 0
 
-        # Delta con colore
-        delta_text = f"{delta_fte:+.1f}"
-        delta_color = '#4CAF50' if delta_fte >= 0 else '#F44336'
-        self.summary_labels['delta_fte'].config(text=delta_text, foreground=delta_color)
+            # Somma FTE richiesti
+            if 'FTE_Richiesti' in df.columns:
+                required_fte = df['FTE_Richiesti'].sum()
+            else:
+                required_fte = 0
 
-        # Coverage con colore
-        coverage_text = f"{avg_coverage:.1f}%"
-        if avg_coverage >= 95:
-            coverage_color = '#4CAF50'
-        elif avg_coverage >= 80:
-            coverage_color = '#FF9800'
-        else:
-            coverage_color = '#F44336'
-        self.summary_labels['coverage'].config(text=coverage_text, foreground=coverage_color)
+            # Calcola delta
+            delta_fte = total_fte - required_fte
+
+            # Calcola copertura media
+            if 'Copertura_%' in df.columns:
+                # Filtra valori validi (non NaN)
+                coperture_valide = df['Copertura_%'].dropna()
+                if len(coperture_valide) > 0:
+                    avg_coverage = coperture_valide.mean()
+                else:
+                    avg_coverage = 100
+            else:
+                avg_coverage = 100
+
+            # Aggiorna labels
+            self.summary_labels['total_fte'].config(text=f"{total_fte:.1f}")
+            self.summary_labels['required_fte'].config(text=f"{required_fte:.1f}")
+
+            # Delta con colore
+            delta_text = f"{delta_fte:+.1f}"
+            delta_color = '#4CAF50' if delta_fte >= 0 else '#F44336'
+            self.summary_labels['delta_fte'].config(text=delta_text, foreground=delta_color)
+
+            # Coverage con colore
+            coverage_text = f"{avg_coverage:.1f}%"
+            if avg_coverage >= 95:
+                coverage_color = '#4CAF50'
+            elif avg_coverage >= 80:
+                coverage_color = '#FF9800'
+            else:
+                coverage_color = '#F44336'
+            self.summary_labels['coverage'].config(text=coverage_text, foreground=coverage_color)
+
+        except Exception as e:
+            print(f"Errore aggiornamento summary: {e}")
+            # Valori di fallback
+            self.summary_labels['total_fte'].config(text="--")
+            self.summary_labels['required_fte'].config(text="--")
+            self.summary_labels['delta_fte'].config(text="--", foreground='#9C27B0')
+            self.summary_labels['coverage'].config(text="--", foreground='#9C27B0')
 
     def show_detail(self, event):
         """Mostra dettaglio operatori per fascia selezionata"""
