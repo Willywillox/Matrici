@@ -139,6 +139,13 @@ class Operatore:
         # Altrimenti skill di default
         return self.etichetta_skill
 
+    def get_giustificativo_at_time(self, orario: time) -> Optional[str]:
+        """Ritorna il codice del giustificativo attivo all'orario specificato (se presente)"""
+        for giust in self.giustificativi:
+            if self._is_in_range(orario, giust['inizio'], giust['fine']):
+                return giust['tipo']
+        return None
+
     def _is_in_range(self, orario: time, inizio: time, fine: time) -> bool:
         """Verifica se un orario è compreso in un range"""
         if fine < inizio:  # Range attraversa mezzanotte

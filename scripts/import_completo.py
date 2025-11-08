@@ -4,9 +4,10 @@ Script per import completo da template Excel unificato
 Importa automaticamente (in ordine):
 1. Skills
 2. Turni
-3. Operatori
+3. Giustificativi
+4. Operatori
 
-Da un unico file Excel con 3 sheet
+Da un unico file Excel con 4 sheet
 """
 
 import sys
@@ -28,6 +29,7 @@ class ImportCompleto:
         self.stats = {
             'skills': {'imported': 0, 'skipped': 0, 'errors': 0},
             'turni': {'imported': 0, 'skipped': 0, 'errors': 0},
+            'giustificativi': {'imported': 0, 'updated': 0, 'errors': 0},
             'operatori': {'imported': 0, 'updated': 0, 'skipped': 0, 'errors': 0}
         }
 
@@ -57,21 +59,28 @@ class ImportCompleto:
         try:
             # === PASSO 1: IMPORT SKILLS ===
             print(f"\n{'-'*70}")
-            print("[1/3] STEP 1/3: IMPORT SKILLS")
+            print("[1/4] STEP 1/4: IMPORT SKILLS")
             print(f"{'-'*70}\n")
 
             self.import_skills(file_path)
 
             # === PASSO 2: IMPORT TURNI ===
             print(f"\n{'-'*70}")
-            print("[2/3] STEP 2/3: IMPORT TURNI")
+            print("[2/4] STEP 2/4: IMPORT TURNI")
             print(f"{'-'*70}\n")
 
             self.import_turni(file_path)
 
-            # === PASSO 3: IMPORT OPERATORI ===
+            # === PASSO 3: IMPORT GIUSTIFICATIVI ===
             print(f"\n{'-'*70}")
-            print("[3/3] STEP 3/3: IMPORT OPERATORI")
+            print("[3/4] STEP 3/4: IMPORT GIUSTIFICATIVI")
+            print(f"{'-'*70}\n")
+
+            self.import_giustificativi(file_path)
+
+            # === PASSO 4: IMPORT OPERATORI ===
+            print(f"\n{'-'*70}")
+            print("[4/4] STEP 4/4: IMPORT OPERATORI")
             print(f"{'-'*70}\n")
 
             self.import_operatori(file_path)
@@ -197,6 +206,77 @@ class ImportCompleto:
         except Exception as e:
             print(f"[ERROR] Errore lettura sheet Turni: {e}")
 
+    def import_giustificativi(self, file_path):
+        """Import giustificativi da sheet Giust"""
+        try:
+            # Verifica se sheet esiste
+            xl_file = pd.ExcelFile(file_path)
+            if 'Giust' not in xl_file.sheet_names:
+                print("[SKIP] Sheet 'Giust' non trovato, saltato")
+                return
+
+            df = pd.read_excel(file_path, sheet_name='Giust')
+            print(f"[OK] Sheet 'Giust' letto: {len(df)} righe\n")
+
+            # Identifica colonna codice
+            codice_col = None
+            if 'Giustificativo' in df.columns:
+                codice_col = 'Giustificativo'
+            elif 'Codice_Giustificativo' in df.columns:
+                codice_col = 'Codice_Giustificativo'
+
+            if not codice_col:
+                print("[ERROR] Colonna 'Giustificativo' o 'Codice_Giustificativo' mancante!")
+                return
+
+            if 'Tipologia' not in df.columns:
+                print("[ERROR] Colonna 'Tipologia' mancante!")
+                return
+
+            for idx, row in df.iterrows():
+                try:
+                    codice = str(row[codice_col]).strip()
+
+                    if not codice or pd.isna(row[codice_col]) or codice.lower() == 'nan':
+                        continue
+
+                    tipologia = str(row['Tipologia']).strip() if pd.notna(row['Tipologia']) else None
+                    descrizione = str(row.get('Descrizione', '')).strip() if pd.notna(row.get('Descrizione')) else None
+                    note = str(row.get('Note', '')).strip() if pd.notna(row.get('Note')) else None
+
+                    # Verifica se esiste
+                    existing = self.db_manager.execute_query(
+                        "SELECT ID FROM Giustificativi WHERE Codice_Giustificativo = ?",
+                        (codice,)
+                    )
+
+                    if existing:
+                        # Update
+                        query = """
+                            UPDATE Giustificativi
+                            SET Descrizione = ?, Tipologia = ?, Note = ?
+                            WHERE Codice_Giustificativo = ?
+                        """
+                        self.db_manager.execute_update(query, (descrizione, tipologia, note, codice))
+                        print(f"  [UPD] '{codice}' - Tipologia: {tipologia}")
+                        self.stats['giustificativi']['updated'] += 1
+                    else:
+                        # Insert
+                        query = """
+                            INSERT INTO Giustificativi (Codice_Giustificativo, Descrizione, Tipologia, Note)
+                            VALUES (?, ?, ?, ?)
+                        """
+                        self.db_manager.execute_update(query, (codice, descrizione, tipologia, note))
+                        print(f"  [OK] '{codice}' - Tipologia: {tipologia}")
+                        self.stats['giustificativi']['imported'] += 1
+
+                except Exception as e:
+                    print(f"  [ERROR] Riga {idx+2}: {e}")
+                    self.stats['giustificativi']['errors'] += 1
+
+        except Exception as e:
+            print(f"[ERROR] Errore lettura sheet Giust: {e}")
+
     def import_operatori(self, file_path):
         """Import operatori da sheet Operatori"""
         try:
@@ -251,6 +331,11 @@ class ImportCompleto:
         print(f"  [SKIP] Saltati:     {self.stats['turni']['skipped']}")
         print(f"  [ERROR] Errori:     {self.stats['turni']['errors']}")
 
+        print(f"\nGIUSTIFICATIVI:")
+        print(f"  [OK] Importati:     {self.stats['giustificativi']['imported']}")
+        print(f"  [UPD] Aggiornati:   {self.stats['giustificativi']['updated']}")
+        print(f"  [ERROR] Errori:     {self.stats['giustificativi']['errors']}")
+
         print(f"\nOPERATORI:")
         print(f"  [OK] Importati:     {self.stats['operatori']['imported']}")
         print(f"  [UPD] Aggiornati:   {self.stats['operatori']['updated']}")
@@ -260,6 +345,8 @@ class ImportCompleto:
         totale_ok = (
             self.stats['skills']['imported'] +
             self.stats['turni']['imported'] +
+            self.stats['giustificativi']['imported'] +
+            self.stats['giustificativi']['updated'] +
             self.stats['operatori']['imported'] +
             self.stats['operatori']['updated']
         )
@@ -267,6 +354,7 @@ class ImportCompleto:
         totale_errori = (
             self.stats['skills']['errors'] +
             self.stats['turni']['errors'] +
+            self.stats['giustificativi']['errors'] +
             self.stats['operatori']['errors']
         )
 
@@ -281,9 +369,10 @@ def main():
         print("Uso: python scripts/import_completo.py <file_excel>")
         print("\nEsempio:")
         print("  python scripts/import_completo.py template_import_completo.xlsx")
-        print("\nIl file Excel deve contenere 3 sheet:")
+        print("\nIl file Excel deve contenere 4 sheet:")
         print("  - Skills: Elenco competenze")
         print("  - Turni: Elenco turni")
+        print("  - Giust: Giustificativi (opzionale)")
         print("  - Operatori: Dati operatori")
         return 1
 

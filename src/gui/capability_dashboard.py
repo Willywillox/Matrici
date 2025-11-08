@@ -15,8 +15,29 @@ class CapabilityDashboard(ttk.Frame):
         super().__init__(parent)
         self.db_manager = db_manager
         self.current_data = None
+        self.tipologie_giustificativi = self._load_tipologie_giustificativi()
         self.setup_ui()
         self.load_skills()  # Carica skill all'inizializzazione
+
+    def _load_tipologie_giustificativi(self):
+        """Carica tipologie uniche di giustificativi dal database"""
+        tipologie = []
+        try:
+            self.db_manager.connect()
+            result = self.db_manager.execute_query("""
+                SELECT DISTINCT Tipologia
+                FROM Giustificativi
+                WHERE Tipologia IS NOT NULL
+                ORDER BY Tipologia
+            """)
+
+            if result:
+                tipologie = [row[0] for row in result]
+
+        except Exception as e:
+            print(f"Avviso: Impossibile caricare tipologie giustificativi: {e}")
+
+        return tipologie
 
     def setup_ui(self):
         """Crea l'interfaccia della dashboard"""
@@ -102,11 +123,12 @@ class CapabilityDashboard(ttk.Frame):
         scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
         scroll_x.pack(side='bottom', fill='x')
 
-        # Treeview
-        columns = (
-            'Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione',
-            'In Strao', 'FTE Eff.', 'FTE Rich.', 'Richiesto', 'Delta', 'Copertura %', 'Stato'
-        )
+        # Treeview - colonne dinamiche con giustificativi
+        base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
+        base_columns_after = ['FTE Eff.', 'FTE Rich.', 'Richiesto', 'Delta', 'Copertura %', 'Stato']
+
+        # Inserisci colonne giustificativi tra In Strao e FTE Eff.
+        columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
                                  yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set,
@@ -131,6 +153,10 @@ class CapabilityDashboard(ttk.Frame):
             'Copertura %': 90,
             'Stato': 100
         }
+
+        # Aggiungi larghezza per colonne giustificativi (abbreviate se troppo lunghe)
+        for tipologia in self.tipologie_giustificativi:
+            column_widths[tipologia] = 80
 
         for col in columns:
             self.tree.heading(col, text=col, command=lambda c=col: self.sort_column(c))
@@ -348,15 +374,27 @@ class CapabilityDashboard(ttk.Frame):
                     stato = "🔴 Critico"
                     tag = 'critical'
 
-                # Inserisci riga (ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione,
-                # In Strao, FTE Eff., FTE Rich., Richiesto, Delta, Copertura %, Stato)
-                values = (
-                    data, fascia, skill, presenti, in_pausa, in_prod, in_strao,
+                # Costruisci valori dinamicamente includendo giustificativi
+                # Ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione, In Strao,
+                #         [Giustificativi...], FTE Eff., FTE Rich., Richiesto, Delta, Copertura %, Stato
+                values_list = [
+                    data, fascia, skill, presenti, in_pausa, in_prod, in_strao
+                ]
+
+                # Aggiungi valori giustificativi dinamicamente
+                for tipologia in self.tipologie_giustificativi:
+                    valore_giust = row.get(tipologia, 0)
+                    if valore_giust is None or pd.isna(valore_giust):
+                        valore_giust = 0
+                    values_list.append(int(valore_giust))
+
+                # Aggiungi valori finali
+                values_list.extend([
                     f"{fte_eff:.1f}", f"{fte_rich:.1f}", agenti_richiesti,
                     f"{delta:+.1f}", f"{copertura:.0f}%", stato
-                )
+                ])
 
-                self.tree.insert('', 'end', values=values, tags=(tag,))
+                self.tree.insert('', 'end', values=tuple(values_list), tags=(tag,))
 
             except Exception as e:
                 print(f"Errore popolamento riga: {e}")

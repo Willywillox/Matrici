@@ -23,6 +23,8 @@ class CapabilityCalculator:
         self.db_manager = db_manager
         self.erlang_calculator = ErlangCalculator()
         self.erlang_configs = self._load_erlang_configs() if db_manager else {}
+        self.giustificativi_map = self._load_giustificativi_map() if db_manager else {}
+        self.tipologie_giustificativi = self._get_tipologie_uniche() if db_manager else []
 
     def _load_erlang_configs(self) -> Dict:
         """Carica configurazioni Erlang C per skill"""
@@ -63,6 +65,42 @@ class CapabilityCalculator:
             print(f"Avviso: Impossibile caricare configurazioni Erlang: {e}")
 
         return configs
+
+    def _load_giustificativi_map(self) -> Dict:
+        """Carica mappatura Codice_Giustificativo -> Tipologia"""
+        giust_map = {}
+
+        try:
+            if not self.db_manager:
+                return giust_map
+
+            # Assicurati che il DB sia connesso
+            if not hasattr(self.db_manager, 'conn') or self.db_manager.conn is None:
+                self.db_manager.connect()
+
+            result = self.db_manager.execute_query("""
+                SELECT Codice_Giustificativo, Tipologia
+                FROM Giustificativi
+            """)
+
+            if result:
+                for row in result:
+                    codice = row[0]
+                    tipologia = row[1] if row[1] else "Altro"
+                    giust_map[codice] = tipologia
+
+        except Exception as e:
+            print(f"Avviso: Impossibile caricare giustificativi: {e}")
+
+        return giust_map
+
+    def _get_tipologie_uniche(self) -> List[str]:
+        """Ottiene lista di tipologie uniche da giustificativi_map"""
+        if not self.giustificativi_map:
+            return []
+
+        tipologie = sorted(set(self.giustificativi_map.values()))
+        return tipologie
 
     def genera_fasce_orarie(self, data: datetime, intervallo_minuti: int = 15) -> List[datetime]:
         """
@@ -105,16 +143,24 @@ class CapabilityCalculator:
             orario = fascia.time()
 
             # Raggruppa per skill
-            stats_per_skill = defaultdict(lambda: {
-                'presenti': 0,
-                'in_pausa': 0,
-                'in_produzione': 0,
-                'in_straordinario': 0,
-                'operatori_presenti': [],
-                'operatori_in_pausa': [],
-                'operatori_in_produzione': [],
-                'operatori_in_straordinario': []
-            })
+            # Inizializza contatori dinamici per tipologie giustificativi
+            def create_stats_dict():
+                stats = {
+                    'presenti': 0,
+                    'in_pausa': 0,
+                    'in_produzione': 0,
+                    'in_straordinario': 0,
+                    'operatori_presenti': [],
+                    'operatori_in_pausa': [],
+                    'operatori_in_produzione': [],
+                    'operatori_in_straordinario': []
+                }
+                # Aggiungi contatori per ogni tipologia di giustificativo
+                for tipologia in self.tipologie_giustificativi:
+                    stats[f'giust_{tipologia}'] = 0
+                return stats
+
+            stats_per_skill = defaultdict(create_stats_dict)
 
             for operatore in self.operatori:
                 if operatore.is_presente(orario):
@@ -134,11 +180,19 @@ class CapabilityCalculator:
                         stats_per_skill[skill]['in_straordinario'] += 1
                         stats_per_skill[skill]['operatori_in_straordinario'].append(operatore.id_sap)
 
+                    # Conta giustificativi per tipologia
+                    giust_codice = operatore.get_giustificativo_at_time(orario)
+                    if giust_codice and giust_codice in self.giustificativi_map:
+                        tipologia = self.giustificativi_map[giust_codice]
+                        key = f'giust_{tipologia}'
+                        if key in stats_per_skill[skill]:
+                            stats_per_skill[skill][key] += 1
+
             # Crea record per ogni skill
             for skill, stats in stats_per_skill.items():
                 fte_effettivi = stats['in_produzione']  # Operatori effettivamente produttivi
 
-                risultati.append({
+                record = {
                     'Fascia_Oraria': fascia,
                     'Skill': skill,
                     'Presenti': stats['presenti'],
@@ -150,7 +204,14 @@ class CapabilityCalculator:
                     'Operatori_In_Pausa': ', '.join(stats['operatori_in_pausa']),
                     'Operatori_In_Produzione': ', '.join(stats['operatori_in_produzione']),
                     'Operatori_In_Straordinario': ', '.join(stats['operatori_in_straordinario'])
-                })
+                }
+
+                # Aggiungi colonne dinamiche per tipologie giustificativi
+                for tipologia in self.tipologie_giustificativi:
+                    key = f'giust_{tipologia}'
+                    record[tipologia] = stats.get(key, 0)
+
+                risultati.append(record)
 
         df = pd.DataFrame(risultati)
 
@@ -335,26 +396,45 @@ class CapabilityCalculator:
         # Calcola ore per skill
         ore_per_fascia = intervallo_minuti / 60.0
 
-        rendiconto = df_all.groupby('Skill').agg({
+        # Aggregazione base
+        agg_dict = {
             'Presenti': 'sum',
             'In_Produzione': 'sum',
             'In_Pausa': 'sum',
             'In_Straordinario': 'sum'
-        }).reset_index()
+        }
 
+        # Aggiungi aggregazione per tipologie giustificativi
+        for tipologia in self.tipologie_giustificativi:
+            if tipologia in df_all.columns:
+                agg_dict[tipologia] = 'sum'
+
+        rendiconto = df_all.groupby('Skill').agg(agg_dict).reset_index()
+
+        # Converti contatori in ore
         rendiconto['Ore_Totali_Presenza'] = rendiconto['Presenti'] * ore_per_fascia
         rendiconto['Ore_Produzione'] = rendiconto['In_Produzione'] * ore_per_fascia
         rendiconto['Ore_Pausa'] = rendiconto['In_Pausa'] * ore_per_fascia
         rendiconto['Ore_Straordinario'] = rendiconto['In_Straordinario'] * ore_per_fascia
 
-        # Rimuovi colonne intermedie
-        rendiconto = rendiconto[[
+        # Converti giustificativi in ore
+        for tipologia in self.tipologie_giustificativi:
+            if tipologia in rendiconto.columns:
+                rendiconto[f'Ore_{tipologia}'] = rendiconto[tipologia] * ore_per_fascia
+
+        # Seleziona colonne finali
+        colonne_base = [
             'Skill',
             'Ore_Totali_Presenza',
             'Ore_Produzione',
             'Ore_Pausa',
             'Ore_Straordinario'
-        ]]
+        ]
+
+        # Aggiungi colonne ore giustificativi
+        colonne_giust = [f'Ore_{tip}' for tip in self.tipologie_giustificativi if f'Ore_{tip}' in rendiconto.columns]
+
+        rendiconto = rendiconto[colonne_base + colonne_giust]
 
         return rendiconto
 

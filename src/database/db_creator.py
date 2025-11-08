@@ -135,6 +135,17 @@ class DatabaseCreator:
                 )
             """)
 
+            # Tabella Giustificativi (anagrafica giustificativi)
+            cursor.execute("""
+                CREATE TABLE Giustificativi (
+                    ID AUTOINCREMENT PRIMARY KEY,
+                    Codice_Giustificativo TEXT(50) UNIQUE NOT NULL,
+                    Descrizione TEXT(255),
+                    Tipologia TEXT(100),
+                    Note TEXT(255)
+                )
+            """)
+
             # Tabella Erlang_Config (configurazione parametri Erlang C per skill)
             cursor.execute("""
                 CREATE TABLE Erlang_Config (
@@ -287,6 +298,16 @@ class DatabaseCreator:
                 Ore_Turno REAL,
                 Ora_Inizio_Spezzato TEXT,
                 Ora_Fine_Spezzato TEXT,
+                Note TEXT
+            )
+        """)
+
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS Giustificativi (
+                ID INTEGER PRIMARY KEY AUTOINCREMENT,
+                Codice_Giustificativo TEXT UNIQUE NOT NULL,
+                Descrizione TEXT,
+                Tipologia TEXT,
                 Note TEXT
             )
         """)
