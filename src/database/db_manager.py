@@ -75,11 +75,61 @@ class DatabaseManager:
 
     def get_operatori(self, data_riferimento=None):
         """Recupera tutti gli operatori per una data specifica"""
-        query = "SELECT * FROM Anagrafica_Operatori"
-        if data_riferimento:
-            query += " WHERE Data_Riferimento = ?"
-            return self.execute_query(query, (data_riferimento,))
-        return self.execute_query(query)
+        if not data_riferimento:
+            return self.execute_query("SELECT * FROM Anagrafica_Operatori")
+
+        # Prova prima con match esatto
+        query = "SELECT * FROM Anagrafica_Operatori WHERE Data_Riferimento = ?"
+        results = self.execute_query(query, (data_riferimento,))
+
+        if results:
+            return results
+
+        # Se non trova risultati, prova con formati alternativi
+        # Converte YYYY-MM-DD in altri formati comuni
+        try:
+            from datetime import datetime
+            if isinstance(data_riferimento, str) and '-' in data_riferimento:
+                # Parsing della data nel formato YYYY-MM-DD
+                dt = datetime.strptime(data_riferimento, '%Y-%m-%d')
+
+                # Formati alternativi da provare
+                formati_alt = [
+                    dt.strftime('%d/%m/%Y'),  # DD/MM/YYYY
+                    dt.strftime('%Y-%m-%d %H:%M:%S'),  # Con timestamp
+                    dt.strftime('%d/%m/%Y %H:%M:%S'),  # DD/MM/YYYY con timestamp
+                    dt.strftime('%m/%d/%Y'),  # MM/DD/YYYY (formato US)
+                ]
+
+                for formato in formati_alt:
+                    results = self.execute_query(query, (formato,))
+                    if results:
+                        print(f"[DEBUG DB] Trovati operatori con formato data: {formato}")
+                        return results
+
+                # Se ancora nessun risultato, prova con LIKE per match parziale
+                # Questo cattura date con timestamp
+                like_query = "SELECT * FROM Anagrafica_Operatori WHERE Data_Riferimento LIKE ?"
+                for pattern in [f"{data_riferimento}%", f"%{dt.strftime('%d/%m/%Y')}%"]:
+                    results = self.execute_query(like_query, (pattern,))
+                    if results:
+                        print(f"[DEBUG DB] Trovati operatori con pattern: {pattern}")
+                        return results
+        except Exception as e:
+            print(f"[DEBUG DB] Errore parsing data: {e}")
+
+        print(f"[DEBUG DB] Nessun operatore trovato per data: {data_riferimento}")
+        return []
+
+    def get_date_riferimento_list(self):
+        """Recupera tutte le date riferimento univoche presenti nel database"""
+        query = "SELECT DISTINCT Data_Riferimento FROM Anagrafica_Operatori ORDER BY Data_Riferimento"
+        try:
+            results = self.execute_query(query)
+            return [row[0] if hasattr(row, '__getitem__') else row.Data_Riferimento for row in results]
+        except Exception as e:
+            print(f"[DEBUG DB] Errore recupero date: {e}")
+            return []
 
     def get_operatore_by_sap(self, id_sap, data_riferimento):
         """Recupera un operatore specifico per ID SAP e data"""

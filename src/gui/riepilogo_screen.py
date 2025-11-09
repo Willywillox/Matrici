@@ -220,6 +220,10 @@ class RiepilogoScreen(ttk.Frame):
             # Carica dati per il periodo
             self.db_manager.connect()
 
+            # Mostra quali date sono disponibili nel database
+            date_disponibili = self.db_manager.get_date_riferimento_list()
+            print(f"[DEBUG RIEPILOGO] Date disponibili nel database: {date_disponibili[:10] if date_disponibili else 'NESSUNA'}")
+
             # Raccogliamo dati per ogni giorno del periodo
             all_operatori = []
             current_date = data_inizio
@@ -244,9 +248,22 @@ class RiepilogoScreen(ttk.Frame):
             print(f"[DEBUG RIEPILOGO] Totale operatori caricati: {len(all_operatori)}")
 
             if not all_operatori:
-                messagebox.showinfo("Info", "Nessun operatore trovato per il periodo selezionato.\n\n"
-                                           "Verificare che nella tabella Anagrafica_Operatori ci siano operatori "
-                                           "con Data_Riferimento nel periodo selezionato.")
+                # Mostra le date disponibili per aiutare l'utente
+                date_msg = ""
+                if date_disponibili:
+                    date_sample = date_disponibili[:5]
+                    date_msg = f"\n\nDate disponibili nel database (prime 5):\n" + "\n".join([f"  • {d}" for d in date_sample])
+                    if len(date_disponibili) > 5:
+                        date_msg += f"\n  ... e altre {len(date_disponibili) - 5} date"
+                else:
+                    date_msg = "\n\nNESSUNA data trovata nel database!"
+
+                messagebox.showinfo("Info",
+                    f"Nessun operatore trovato per il periodo:\n"
+                    f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}\n"
+                    f"{date_msg}\n\n"
+                    f"Verificare che nella tabella Anagrafica_Operatori ci siano operatori "
+                    f"con Data_Riferimento nel periodo selezionato.")
                 self.db_manager.close()
                 return
 
