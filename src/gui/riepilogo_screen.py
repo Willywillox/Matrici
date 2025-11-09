@@ -420,6 +420,12 @@ class RiepilogoScreen(ttk.Frame):
 
     def _row_to_dict(self, row):
         """Converte row database in dict"""
+        # SQLite Row objects (hanno keys())
+        if hasattr(row, 'keys'):
+            return {key: row[key] for key in row.keys()}
+
+        # PyODBC Row objects (hanno cursor_description)
         if hasattr(row, 'cursor_description'):
             return {desc[0]: getattr(row, desc[0]) for desc in row.cursor_description}
+
         return {}
