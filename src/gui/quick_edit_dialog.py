@@ -5,6 +5,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, time
 from tkcalendar import DateEntry
+import sys
+import os
+
+# Aggiungi path per import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.time_utils import genera_orari_15min
 
 
 class QuickEditDialog(tk.Toplevel):
@@ -25,6 +31,10 @@ class QuickEditDialog(tk.Toplevel):
         # Carica giustificativi dal database
         self.giust_types = ['']  # Stringa vuota per "nessun giustificativo"
         self.load_giustificativi()
+
+        # Genera lista orari per combobox
+        self.orari_15min = genera_orari_15min()
+
         self.setup_ui()
 
         if operatore_id:
@@ -160,13 +170,13 @@ class QuickEditDialog(tk.Toplevel):
 
         ttk.Label(turno_frame, text="Ora Inizio:").grid(row=0, column=0, sticky='e', padx=5, pady=5)
         self.turno_inizio_var = tk.StringVar()
-        ttk.Entry(turno_frame, textvariable=self.turno_inizio_var, width=10).grid(
-            row=0, column=1, sticky='w', padx=5, pady=5)
+        ttk.Combobox(turno_frame, textvariable=self.turno_inizio_var, values=self.orari_15min,
+                     width=8, state='normal').grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
         ttk.Label(turno_frame, text="Ora Fine:").grid(row=0, column=2, sticky='e', padx=(20,5), pady=5)
         self.turno_fine_var = tk.StringVar()
-        ttk.Entry(turno_frame, textvariable=self.turno_fine_var, width=10).grid(
-            row=0, column=3, sticky='w', padx=5, pady=5)
+        ttk.Combobox(turno_frame, textvariable=self.turno_fine_var, values=self.orari_15min,
+                     width=8, state='normal').grid(row=0, column=3, sticky='w', padx=5, pady=5)
 
         # Turno spezzato
         spezzato_frame = ttk.LabelFrame(frame, text="Turno Spezzato (opzionale)", padding=10)
@@ -174,13 +184,13 @@ class QuickEditDialog(tk.Toplevel):
 
         ttk.Label(spezzato_frame, text="Ora Inizio:").grid(row=0, column=0, sticky='e', padx=5, pady=5)
         self.spezzato_inizio_var = tk.StringVar()
-        ttk.Entry(spezzato_frame, textvariable=self.spezzato_inizio_var, width=10).grid(
-            row=0, column=1, sticky='w', padx=5, pady=5)
+        ttk.Combobox(spezzato_frame, textvariable=self.spezzato_inizio_var, values=self.orari_15min,
+                     width=8, state='normal').grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
         ttk.Label(spezzato_frame, text="Ora Fine:").grid(row=0, column=2, sticky='e', padx=(20,5), pady=5)
         self.spezzato_fine_var = tk.StringVar()
-        ttk.Entry(spezzato_frame, textvariable=self.spezzato_fine_var, width=10).grid(
-            row=0, column=3, sticky='w', padx=5, pady=5)
+        ttk.Combobox(spezzato_frame, textvariable=self.spezzato_fine_var, values=self.orari_15min,
+                     width=8, state='normal').grid(row=0, column=3, sticky='w', padx=5, pady=5)
 
         # Bottoni rapidi
         quick_frame = ttk.Frame(frame)
@@ -220,15 +230,15 @@ class QuickEditDialog(tk.Toplevel):
 
             var_inizio = tk.StringVar()
             setattr(self, f'strao{i}_inizio_var', var_inizio)
-            ttk.Entry(slot_frame, textvariable=var_inizio, width=10).grid(
-                row=0, column=1, sticky='w', padx=5, pady=5)
+            ttk.Combobox(slot_frame, textvariable=var_inizio, values=self.orari_15min,
+                         width=8, state='normal').grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
             ttk.Label(slot_frame, text="Ora Fine:").grid(row=0, column=2, sticky='e', padx=(20,5), pady=5)
 
             var_fine = tk.StringVar()
             setattr(self, f'strao{i}_fine_var', var_fine)
-            ttk.Entry(slot_frame, textvariable=var_fine, width=10).grid(
-                row=0, column=3, sticky='w', padx=5, pady=5)
+            ttk.Combobox(slot_frame, textvariable=var_fine, values=self.orari_15min,
+                         width=8, state='normal').grid(row=0, column=3, sticky='w', padx=5, pady=5)
 
             # Bottone clear
             ttk.Button(slot_frame, text="Cancella",
@@ -270,20 +280,23 @@ class QuickEditDialog(tk.Toplevel):
                                 values=self.giust_types, width=15, state='readonly')
             combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
+            # Bind callback per auto-fill orari quando viene selezionato un tipo
+            combo.bind('<<ComboboxSelected>>', lambda e, idx=i: self.on_giust_tipo_selected(idx))
+
             # Orari
             ttk.Label(slot_frame, text="Inizio:").grid(row=0, column=2, sticky='e', padx=(20,5), pady=5)
 
             var_inizio = tk.StringVar()
             setattr(self, f'giust{i}_inizio_var', var_inizio)
-            ttk.Entry(slot_frame, textvariable=var_inizio, width=10).grid(
-                row=0, column=3, sticky='w', padx=5, pady=5)
+            ttk.Combobox(slot_frame, textvariable=var_inizio, values=self.orari_15min,
+                         width=8, state='normal').grid(row=0, column=3, sticky='w', padx=5, pady=5)
 
             ttk.Label(slot_frame, text="Fine:").grid(row=0, column=4, sticky='e', padx=(20,5), pady=5)
 
             var_fine = tk.StringVar()
             setattr(self, f'giust{i}_fine_var', var_fine)
-            ttk.Entry(slot_frame, textvariable=var_fine, width=10).grid(
-                row=0, column=5, sticky='w', padx=5, pady=5)
+            ttk.Combobox(slot_frame, textvariable=var_fine, values=self.orari_15min,
+                         width=8, state='normal').grid(row=0, column=5, sticky='w', padx=5, pady=5)
 
             # Bottone clear
             ttk.Button(slot_frame, text="Cancella",
@@ -471,6 +484,28 @@ class QuickEditDialog(tk.Toplevel):
         getattr(self, f'giust{idx}_tipo_var').set('')
         getattr(self, f'giust{idx}_inizio_var').set('')
         getattr(self, f'giust{idx}_fine_var').set('')
+
+    def on_giust_tipo_selected(self, idx):
+        """Callback quando viene selezionato un tipo di giustificativo
+
+        Se gli orari del giustificativo sono vuoti, li compila automaticamente
+        con gli orari del turno principale
+        """
+        tipo_var = getattr(self, f'giust{idx}_tipo_var')
+        inizio_var = getattr(self, f'giust{idx}_inizio_var')
+        fine_var = getattr(self, f'giust{idx}_fine_var')
+
+        # Se è stato selezionato un tipo e gli orari sono vuoti
+        if tipo_var.get() and tipo_var.get().strip():
+            # Auto-fill solo se entrambi gli orari sono vuoti
+            if not inizio_var.get() and not fine_var.get():
+                # Usa gli orari del turno principale
+                turno_inizio = self.turno_inizio_var.get()
+                turno_fine = self.turno_fine_var.get()
+
+                if turno_inizio and turno_fine:
+                    inizio_var.set(turno_inizio)
+                    fine_var.set(turno_fine)
 
     def salva_modifiche(self):
         """Salva tutte le modifiche"""

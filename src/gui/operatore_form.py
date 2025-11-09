@@ -5,6 +5,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime, time
 from tkcalendar import DateEntry
+import sys
+import os
+
+# Aggiungi path per import utils
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+from utils.time_utils import genera_orari_15min
 
 
 class OperatoreForm(tk.Toplevel):
@@ -22,6 +28,9 @@ class OperatoreForm(tk.Toplevel):
         # Carica giustificativi dal database
         self.giust_types = ['']  # Stringa vuota per "nessun giustificativo"
         self.load_giustificativi()
+
+        # Genera lista orari per combobox
+        self.orari_15min = genera_orari_15min()
 
         # Centra finestra
         self.update_idletasks()
@@ -175,8 +184,11 @@ class OperatoreForm(tk.Toplevel):
             row += 1
             ttk.Label(scrollable_frame, text=f"Giustificativo {i}:", font=('Arial', 9, 'bold')).grid(
                 row=row, column=0, sticky='w', padx=5)
-            self.create_field(scrollable_frame, row, "Tipo:", f"Tipo_Giust_{i}",
+            tipo_widget = self.create_field(scrollable_frame, row, "Tipo:", f"Tipo_Giust_{i}",
                              combo_values=self.giust_types, col_offset=1, label_width=8, entry_width=15)
+            # Bind callback per auto-fill orari quando viene selezionato un tipo
+            tipo_widget.bind('<<ComboboxSelected>>', lambda e, idx=i: self.on_giust_tipo_selected(idx))
+
             self.create_field(scrollable_frame, row, "Inizio:", f"Inizio_Giust_{i}",
                              is_time=True, col_offset=3, label_width=8)
             self.create_field(scrollable_frame, row, "Fine:", f"Fine_Giust_{i}",
@@ -248,12 +260,8 @@ class OperatoreForm(tk.Toplevel):
                               width=entry_width, date_pattern='dd/mm/yyyy')
         elif is_time:
             self.vars[var_name] = tk.StringVar(value=default)
-            widget = ttk.Entry(parent, textvariable=self.vars[var_name], width=10)
-            # Placeholder per formato
-            if not default:
-                widget.insert(0, "HH:MM")
-                widget.config(foreground='gray')
-                widget.bind('<FocusIn>', lambda e: self.on_time_focus_in(e, var_name))
+            widget = ttk.Combobox(parent, textvariable=self.vars[var_name],
+                                 values=self.orari_15min, width=8, state='normal')
         else:
             self.vars[var_name] = tk.StringVar(value=default)
             widget = ttk.Entry(parent, textvariable=self.vars[var_name], width=entry_width)
@@ -331,6 +339,29 @@ class OperatoreForm(tk.Toplevel):
 
         except Exception as e:
             print(f"Errore auto-compilazione turno: {e}")
+
+    def on_giust_tipo_selected(self, idx):
+        """Callback quando viene selezionato un tipo di giustificativo
+
+        Se gli orari del giustificativo sono vuoti, li compila automaticamente
+        con gli orari del turno principale
+        """
+        tipo_var_name = f'Tipo_Giust_{idx}'
+        inizio_var_name = f'Inizio_Giust_{idx}'
+        fine_var_name = f'Fine_Giust_{idx}'
+
+        # Se è stato selezionato un tipo e gli orari sono vuoti
+        if self.vars[tipo_var_name].get() and self.vars[tipo_var_name].get().strip():
+            # Auto-fill solo se entrambi gli orari sono vuoti
+            if not self.vars[inizio_var_name].get() and not self.vars[fine_var_name].get():
+                # Usa gli orari del turno principale
+                turno_inizio = self.vars.get('Ora_Inizio_Turno', tk.StringVar()).get()
+                turno_fine = self.vars.get('Ora_Fine_Turno', tk.StringVar()).get()
+
+                if turno_inizio and turno_fine:
+                    self.vars[inizio_var_name].set(turno_inizio)
+                    self.vars[fine_var_name].set(turno_fine)
+                    print(f"✅ Orari giustificativo {idx} auto-compilati: {turno_inizio} - {turno_fine}")
 
     def load_operatore(self):
         """Carica dati operatore esistente"""
