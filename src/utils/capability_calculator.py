@@ -688,6 +688,10 @@ class CapabilityCalculator:
             DataFrame con: ID_SAP, Nome, Cognome, Skill, Ore_Produzione, Ore_Pausa,
                           Ore_Straordinario, Ore_{Giustificativi}, metriche calcolate
         """
+        print(f"[DEBUG] Inizio calcolo rendiconto per persona: {len(self.operatori)} operatori")
+        print(f"[DEBUG] Periodo: {data_inizio.strftime('%Y-%m-%d')} - {data_fine.strftime('%Y-%m-%d')}")
+        print(f"[DEBUG] Tipologie giustificativi: {self.tipologie_giustificativi}")
+
         # Genera fasce orarie per il periodo
         fasce_orarie = []
         current_date = data_inizio
@@ -696,13 +700,16 @@ class CapabilityCalculator:
             fasce_orarie.extend(fasce_day)
             current_date += timedelta(days=1)
 
+        print(f"[DEBUG] Fasce orarie generate: {len(fasce_orarie)}")
+
         if not fasce_orarie:
+            print("[DEBUG] Nessuna fascia oraria generata, ritorno DataFrame vuoto")
             return pd.DataFrame()
 
         # Processa ogni operatore per ogni fascia
         records_per_persona = []
         ore_per_fascia = intervallo_minuti / 60.0
-        fasce_processate = set()  # Track già processati per evitare duplicati
+        fasce_processate = set()
 
         for op in self.operatori:
             for fascia_oraria in fasce_orarie:
@@ -715,11 +722,13 @@ class CapabilityCalculator:
                 fasce_processate.add(chiave)
 
                 # Inizializza record
+                skill = op.get_skill_at_time(orario) if hasattr(op, 'get_skill_at_time') else op.etichetta_skill
+
                 record = {
                     'ID_SAP': op.id_sap,
                     'Nome': op.nome,
                     'Cognome': op.cognome,
-                    'Skill': op.get_skill_at_time(orario),
+                    'Skill': skill if skill else 'N/A',
                     'Fascia_Oraria': fascia_oraria,
                     'In_Produzione': 0,
                     'In_Pausa': 0,
@@ -741,7 +750,7 @@ class CapabilityCalculator:
                     if op.is_in_straordinario(orario):
                         record['In_Straordinario'] = 1
 
-                    # Verifica giustificativo (anche se presente, potrebbe avere permesso/altro)
+                    # Verifica giustificativo
                     giust_codice = op.get_giustificativo_at_time(orario)
                     if giust_codice and giust_codice in self.giustificativi_map:
                         tipologia = self.giustificativi_map[giust_codice]
@@ -754,7 +763,7 @@ class CapabilityCalculator:
                         tipologia = self.giustificativi_map[giust_codice]
                         record[tipologia] = 1
 
-                # Aggiungi solo se c'è qualche attività (presente, in pausa, straordinario o giustificativo)
+                # Aggiungi solo se c'è qualche attività
                 ha_attivita = (record['In_Produzione'] > 0 or
                               record['In_Pausa'] > 0 or
                               record['In_Straordinario'] > 0 or
@@ -763,10 +772,15 @@ class CapabilityCalculator:
                 if ha_attivita:
                     records_per_persona.append(record)
 
+        print(f"[DEBUG] Record creati: {len(records_per_persona)}")
+
         if not records_per_persona:
+            print("[DEBUG] Nessun record creato, ritorno DataFrame vuoto")
             return pd.DataFrame()
 
         df_persone = pd.DataFrame(records_per_persona)
+        print(f"[DEBUG] DataFrame creato con colonne: {df_persone.columns.tolist()}")
+        print(f"[DEBUG] Righe nel DataFrame: {len(df_persone)}")
 
         # Aggregazione per persona
         agg_dict = {
@@ -783,7 +797,16 @@ class CapabilityCalculator:
             if tipologia in df_persone.columns:
                 agg_dict[tipologia] = 'sum'
 
-        rendiconto = df_persone.groupby('ID_SAP').agg(agg_dict).reset_index()
+        print(f"[DEBUG] Aggregazione con chiavi: {list(agg_dict.keys())}")
+
+        try:
+            rendiconto = df_persone.groupby('ID_SAP').agg(agg_dict).reset_index()
+            print(f"[DEBUG] Aggregazione completata, righe: {len(rendiconto)}")
+        except Exception as e:
+            print(f"[ERROR] Errore durante aggregazione: {e}")
+            import traceback
+            traceback.print_exc()
+            return pd.DataFrame()
 
         # Converti contatori in ore
         rendiconto['Ore_Produzione'] = rendiconto['In_Produzione'] * ore_per_fascia
@@ -795,10 +818,10 @@ class CapabilityCalculator:
             if tipologia in rendiconto.columns:
                 rendiconto[f'Ore_{tipologia}'] = rendiconto[tipologia] * ore_per_fascia
 
-        # Calcola Ore Ordinarie da Turno (produzione escluso straordinario)
+        # Calcola Ore Ordinarie da Turno
         rendiconto['Ore_Ordinarie_Turno'] = rendiconto['Ore_Produzione'] - rendiconto['Ore_Straordinario']
 
-        # Calcola Estensione Straordinario = Ore_Strao / Ore_Ordinarie_Turno
+        # Calcola Estensione Straordinario
         rendiconto['Estensione_Straordinario_%'] = rendiconto.apply(
             lambda row: (row['Ore_Straordinario'] / row['Ore_Ordinarie_Turno'] * 100)
             if row['Ore_Ordinarie_Turno'] > 0 else 0,
@@ -809,16 +832,15 @@ class CapabilityCalculator:
         ore_assenze_totali = pd.Series(0, index=rendiconto.index)
         for tipologia in self.tipologie_giustificativi:
             col_name = f'Ore_{tipologia}'
-            # Escludi "Form" dal conteggio assenze
             if col_name in rendiconto.columns and tipologia != 'Form':
                 ore_assenze_totali += rendiconto[col_name].fillna(0)
 
         rendiconto['Ore_Assenze_Totali'] = ore_assenze_totali
 
-        # Calcola Ore Pianificate = Ore Ordinarie + Assenze
+        # Calcola Ore Pianificate
         rendiconto['Ore_Pianificate'] = rendiconto['Ore_Ordinarie_Turno'] + rendiconto['Ore_Assenze_Totali']
 
-        # Calcola Assenteismo = Ore_Assenze_Totali / Ore_Pianificate
+        # Calcola Assenteismo
         rendiconto['Assenteismo_%'] = rendiconto.apply(
             lambda row: (row['Ore_Assenze_Totali'] / row['Ore_Pianificate'] * 100)
             if row['Ore_Pianificate'] > 0 else 0,
@@ -853,10 +875,24 @@ class CapabilityCalculator:
             'Assenteismo_%'
         ]
 
-        rendiconto = rendiconto[colonne_base + colonne_giust + colonne_assenze]
+        colonne_finali = colonne_base + colonne_giust + colonne_assenze
+
+        # Verifica che tutte le colonne esistano
+        colonne_mancanti = [col for col in colonne_finali if col not in rendiconto.columns]
+        if colonne_mancanti:
+            print(f"[WARNING] Colonne mancanti: {colonne_mancanti}")
+            # Rimuovi colonne mancanti dalla selezione
+            colonne_finali = [col for col in colonne_finali if col in rendiconto.columns]
+
+        print(f"[DEBUG] Colonne finali selezionate: {colonne_finali}")
+
+        rendiconto = rendiconto[colonne_finali]
 
         # Ordina per cognome
         rendiconto = rendiconto.sort_values('Cognome')
+
+        print(f"[DEBUG] Rendiconto finale: {len(rendiconto)} righe, {len(rendiconto.columns)} colonne")
+        print(f"[DEBUG] Colonne finali: {rendiconto.columns.tolist()}")
 
         return rendiconto
 
