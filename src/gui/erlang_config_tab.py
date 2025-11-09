@@ -322,9 +322,13 @@ class ErlangConfigDialog(tk.Toplevel):
         aht_frame = ttk.Frame(form)
         aht_frame.grid(row=row, column=1, sticky='w', pady=5)
         self.vars['aht_seconds'] = tk.IntVar(value=180)
-        ttk.Entry(aht_frame, textvariable=self.vars['aht_seconds'], width=15).pack(side='left')
+        aht_entry = ttk.Entry(aht_frame, textvariable=self.vars['aht_seconds'], width=15)
+        aht_entry.pack(side='left')
         ttk.Label(aht_frame, text="  (Average Handle Time - es: 180 = 3 minuti)",
                  foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['aht_seconds'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
         # Concurrency (solo per Chat)
@@ -345,9 +349,13 @@ class ErlangConfigDialog(tk.Toplevel):
         shr_frame = ttk.Frame(form)
         shr_frame.grid(row=row, column=1, sticky='w', pady=5)
         self.vars['shrinkage'] = tk.DoubleVar(value=30.0)
-        ttk.Entry(shr_frame, textvariable=self.vars['shrinkage'], width=15).pack(side='left')
+        shr_entry = ttk.Entry(shr_frame, textvariable=self.vars['shrinkage'], width=15)
+        shr_entry.pack(side='left')
         ttk.Label(shr_frame, text="  (Tempo non produttivo - es: 30%)",
                  foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['shrinkage'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
         # Occupancy
@@ -355,9 +363,42 @@ class ErlangConfigDialog(tk.Toplevel):
         occ_frame = ttk.Frame(form)
         occ_frame.grid(row=row, column=1, sticky='w', pady=5)
         self.vars['occupancy_target'] = tk.DoubleVar(value=85.0)
-        ttk.Entry(occ_frame, textvariable=self.vars['occupancy_target'], width=15).pack(side='left')
+        occ_entry = ttk.Entry(occ_frame, textvariable=self.vars['occupancy_target'], width=15)
+        occ_entry.pack(side='left')
         ttk.Label(occ_frame, text="  (Target occupancy agenti - es: 85%)",
                  foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['occupancy_target'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # === PRODUTTIVITÀ CALCOLATA ===
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
+        row += 1
+
+        ttk.Label(form, text="📊 Produttività Calcolata:",
+                 font=('Arial', 11, 'bold'), foreground='#2196F3').grid(row=row, column=0, sticky='w', pady=5)
+        prod_frame = ttk.Frame(form)
+        prod_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        self.productivity_label = ttk.Label(prod_frame, text="-- chiamate/ora",
+                                           font=('Arial', 12, 'bold'), foreground='#4CAF50')
+        self.productivity_label.pack(side='left')
+        ttk.Label(prod_frame, text="  per operatore",
+                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+        row += 1
+
+        ttk.Label(form, text="", foreground='#666', font=('Arial', 9)).grid(row=row, column=0, sticky='w')
+        formula_frame = ttk.Frame(form)
+        formula_frame.grid(row=row, column=1, sticky='w', pady=(0, 5))
+
+        self.productivity_formula_label = ttk.Label(formula_frame,
+                                                   text="Formula: (3600/AHT) × (1-Shrink) × Occupancy",
+                                                   foreground='#888', font=('Arial', 8, 'italic'))
+        self.productivity_formula_label.pack(side='left')
+        row += 1
+
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
         row += 1
 
         # === SEZIONE SERVICE LEVEL (Voice/Email) ===
@@ -455,6 +496,44 @@ class ErlangConfigDialog(tk.Toplevel):
 
         # Configura stato iniziale campi
         self.on_canale_change()
+
+        # Calcola produttività iniziale
+        self.calculate_productivity()
+
+    def calculate_productivity(self):
+        """Calcola e visualizza la produttività in tempo reale"""
+        try:
+            # Ottieni valori correnti
+            aht = self.vars['aht_seconds'].get()
+            shrinkage = self.vars['shrinkage'].get() / 100.0  # Converti % in decimale
+            occupancy = self.vars['occupancy_target'].get() / 100.0  # Converti % in decimale
+
+            # Valida valori
+            if aht <= 0:
+                self.productivity_label.config(text="AHT non valido", foreground='#F44336')
+                return
+
+            if not (0 <= shrinkage < 1) or not (0 <= occupancy <= 1):
+                self.productivity_label.config(text="Valori % non validi", foreground='#F44336')
+                return
+
+            # Formula: (3600 / AHT) × (1 - shrinkage) × occupancy
+            productivity = (3600.0 / aht) * (1 - shrinkage) * occupancy
+
+            # Aggiorna label con valore calcolato
+            self.productivity_label.config(
+                text=f"{productivity:.2f} chiamate/ora",
+                foreground='#4CAF50'
+            )
+
+            # Aggiorna formula con valori sostituiti
+            formula_text = f"Formula: (3600/{aht}) × (1-{shrinkage:.2f}) × {occupancy:.2f} = {productivity:.2f}"
+            self.productivity_formula_label.config(text=formula_text)
+
+        except (tk.TclError, ValueError, ZeroDivisionError):
+            # Valore non valido durante digitazione
+            self.productivity_label.config(text="-- chiamate/ora", foreground='#4CAF50')
+            self.productivity_formula_label.config(text="Formula: (3600/AHT) × (1-Shrink) × Occupancy")
 
     def on_canale_change(self):
         """Gestisce cambio tipo canale"""
@@ -582,6 +661,7 @@ class ErlangConfigDialog(tk.Toplevel):
                 self.vars['note'].set(cfg[11] or '')
 
                 self.on_canale_change()
+                self.calculate_productivity()  # Ricalcola produttività con i valori caricati
 
             self.db_manager.close()
 
