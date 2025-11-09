@@ -102,21 +102,39 @@ class RiepilogoScreen(ttk.Frame):
 
         self.summary_cards = {}
 
-        # Cards con metriche
-        metrics = [
-            ('ore_totali', 'Ore Totali Lavorate', '#4CAF50'),
+        # Row 1: Ore
+        row1_metrics = [
             ('ore_produzione', 'Ore Produzione', '#2196F3'),
-            ('ore_pausa', 'Ore Pausa', '#FF9800'),
+            ('ore_ordinarie', 'Ore Ordinarie', '#4CAF50'),
             ('ore_strao', 'Ore Straordinario', '#9C27B0'),
+            ('estensione_strao', 'Estensione Strao %', '#FF5722'),
         ]
 
-        for i, (key, label, color) in enumerate(metrics):
+        for i, (key, label, color) in enumerate(row1_metrics):
             card = ttk.Frame(cards_frame, relief='raised', borderwidth=2)
             card.grid(row=0, column=i, padx=10, pady=5, sticky='ew')
             cards_frame.columnconfigure(i, weight=1)
 
             ttk.Label(card, text=label, font=('Arial', 9)).pack(pady=(5, 0))
-            value_label = ttk.Label(card, text="--", font=('Arial', 18, 'bold'),
+            value_label = ttk.Label(card, text="--", font=('Arial', 16, 'bold'),
+                                   foreground=color)
+            value_label.pack(pady=(0, 5))
+            self.summary_cards[key] = value_label
+
+        # Row 2: Assenze e Metriche
+        row2_metrics = [
+            ('ore_assenze', 'Ore Assenze Totali', '#FF9800'),
+            ('ore_pianificate', 'Ore Pianificate', '#009688'),
+            ('assenteismo', 'Assenteismo %', '#F44336'),
+            ('ore_pausa', 'Ore Pausa', '#795548'),
+        ]
+
+        for i, (key, label, color) in enumerate(row2_metrics):
+            card = ttk.Frame(cards_frame, relief='raised', borderwidth=2)
+            card.grid(row=1, column=i, padx=10, pady=5, sticky='ew')
+
+            ttk.Label(card, text=label, font=('Arial', 9)).pack(pady=(5, 0))
+            value_label = ttk.Label(card, text="--", font=('Arial', 16, 'bold'),
                                    foreground=color)
             value_label.pack(pady=(0, 5))
             self.summary_cards[key] = value_label
@@ -286,20 +304,41 @@ class RiepilogoScreen(ttk.Frame):
     def update_summary_cards(self, df, view_type):
         """Aggiorna le cards summary"""
         if view_type == 'servizio':
-            ore_totali = df['Ore_Totali_Presenza'].sum()
             ore_produzione = df['Ore_Produzione'].sum()
+            ore_ordinarie = df['Ore_Ordinarie_Turno'].sum()
             ore_pausa = df['Ore_Pausa'].sum()
             ore_strao = df['Ore_Straordinario'].sum()
+            ore_assenze = df['Ore_Assenze_Totali'].sum()
+            ore_pianificate = df['Ore_Pianificate'].sum()
+
+            # Calcola medie ponderate per le percentuali
+            if ore_ordinarie > 0:
+                estensione_strao = (ore_strao / ore_ordinarie) * 100
+            else:
+                estensione_strao = 0
+
+            if ore_pianificate > 0:
+                assenteismo = (ore_assenze / ore_pianificate) * 100
+            else:
+                assenteismo = 0
         else:
-            ore_totali = df['Ore_Lavorate'].sum()
-            ore_produzione = df['Ore_Ordinarie'].sum()
+            ore_produzione = df['Ore_Lavorate'].sum()
+            ore_ordinarie = df.get('Ore_Ordinarie', pd.Series([0])).sum()
             ore_pausa = 0  # Non disponibile in report persona
             ore_strao = df['Ore_Straordinario'].sum()
+            ore_assenze = 0
+            ore_pianificate = 0
+            estensione_strao = 0
+            assenteismo = 0
 
-        self.summary_cards['ore_totali'].config(text=f"{ore_totali:.1f} h")
         self.summary_cards['ore_produzione'].config(text=f"{ore_produzione:.1f} h")
+        self.summary_cards['ore_ordinarie'].config(text=f"{ore_ordinarie:.1f} h")
         self.summary_cards['ore_pausa'].config(text=f"{ore_pausa:.1f} h")
         self.summary_cards['ore_strao'].config(text=f"{ore_strao:.1f} h")
+        self.summary_cards['ore_assenze'].config(text=f"{ore_assenze:.1f} h")
+        self.summary_cards['ore_pianificate'].config(text=f"{ore_pianificate:.1f} h")
+        self.summary_cards['estensione_strao'].config(text=f"{estensione_strao:.1f}%")
+        self.summary_cards['assenteismo'].config(text=f"{assenteismo:.1f}%")
 
     def export_excel(self):
         """Esporta report in Excel"""

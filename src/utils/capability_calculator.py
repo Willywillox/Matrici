@@ -618,20 +618,60 @@ class CapabilityCalculator:
         giorni_lavorati = (data_fine - data_inizio).days + 1
         rendiconto['FTE_Medio'] = rendiconto['Ore_Produzione'] / 8.0 / giorni_lavorati
 
+        # Calcola Ore Ordinarie da Turno (produzione escluso straordinario)
+        rendiconto['Ore_Ordinarie_Turno'] = rendiconto['Ore_Produzione'] - rendiconto['Ore_Straordinario']
+
+        # Calcola Estensione Straordinario = Ore_Strao / Ore_Ordinarie_Turno
+        rendiconto['Estensione_Straordinario_%'] = rendiconto.apply(
+            lambda row: (row['Ore_Straordinario'] / row['Ore_Ordinarie_Turno'] * 100)
+            if row['Ore_Ordinarie_Turno'] > 0 else 0,
+            axis=1
+        )
+
+        # Calcola Ore Assenze Totali (escluso Form)
+        ore_assenze_totali = pd.Series(0, index=rendiconto.index)
+        for tipologia in self.tipologie_giustificativi:
+            col_name = f'Ore_{tipologia}'
+            # Escludi "Form" dal conteggio assenze
+            if col_name in rendiconto.columns and tipologia != 'Form':
+                ore_assenze_totali += rendiconto[col_name].fillna(0)
+
+        rendiconto['Ore_Assenze_Totali'] = ore_assenze_totali
+
+        # Calcola Ore Pianificate = Ore Ordinarie + Assenze + (eventualmente Malattia già inclusa in Assenze)
+        # Ore_Pianificate = Ore_Ordinarie_Turno + Ore_Assenze_Totali
+        rendiconto['Ore_Pianificate'] = rendiconto['Ore_Ordinarie_Turno'] + rendiconto['Ore_Assenze_Totali']
+
+        # Calcola Assenteismo = Ore_Assenze_Totali / Ore_Pianificate
+        rendiconto['Assenteismo_%'] = rendiconto.apply(
+            lambda row: (row['Ore_Assenze_Totali'] / row['Ore_Pianificate'] * 100)
+            if row['Ore_Pianificate'] > 0 else 0,
+            axis=1
+        )
+
         # Seleziona colonne finali
         colonne_base = [
             'Skill',
             'Ore_Totali_Presenza',
             'Ore_Produzione',
+            'Ore_Ordinarie_Turno',
             'Ore_Pausa',
             'Ore_Straordinario',
+            'Estensione_Straordinario_%',
             'FTE_Medio'
         ]
 
         # Aggiungi colonne ore giustificativi
         colonne_giust = [f'Ore_{tip}' for tip in self.tipologie_giustificativi if f'Ore_{tip}' in rendiconto.columns]
 
-        rendiconto = rendiconto[colonne_base + colonne_giust]
+        # Aggiungi colonne di calcolo assenteismo
+        colonne_assenze = [
+            'Ore_Assenze_Totali',
+            'Ore_Pianificate',
+            'Assenteismo_%'
+        ]
+
+        rendiconto = rendiconto[colonne_base + colonne_giust + colonne_assenze]
 
         return rendiconto
 
