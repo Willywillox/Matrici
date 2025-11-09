@@ -195,12 +195,16 @@ class CapabilityDashboard(ttk.Frame):
         # Riorganizzate per raggruppamento logico:
         # FTE: Effettivi, Richiesti, Delta
         # Forecast: Volumi, Gestibile, Delta
-        # Agenti e Produttività: Agenti, Prod/h
+        # Agenti: Richiesti, Produzione, Delta
+        # Ore: Necessarie, Produzione, Delta
+        # Produttività: Prod/h
         # Performance: Capability %, Copertura %, Stato
         base_columns_after = [
             'FTE Eff.', 'FTE Rich.', 'Delta FTE',
             'Volumi FC', 'Gest. Chiam.', 'Delta FC',
-            'Agenti', 'Prod/h',
+            'Agenti', 'Ag.Produzione', 'Delta Ag',
+            'Prod/h',
+            'Ore Necessarie', 'Ore Produz.', 'Delta Ore',
             'Capability %', 'Copertura %', 'Stato'
         ]
 
@@ -230,7 +234,12 @@ class CapabilityDashboard(ttk.Frame):
             'Gest. Chiam.': 90,
             'Delta FC': 70,
             'Agenti': 70,
+            'Ag.Produzione': 100,
+            'Delta Ag': 70,
             'Prod/h': 70,
+            'Ore Necessarie': 100,
+            'Ore Produz.': 90,
+            'Delta Ore': 80,
             'Capability %': 90,
             'Copertura %': 90,
             'Stato': 100
@@ -458,6 +467,17 @@ class CapabilityDashboard(ttk.Frame):
         if df is None or df.empty:
             return
 
+        # Determina ore per fascia per calcoli delle ore
+        if not df.empty and 'Fascia_Oraria' in df.columns:
+            sorted_fasce = sorted(df['Fascia_Oraria'].unique())
+            if len(sorted_fasce) >= 2:
+                delta_minutes = (sorted_fasce[1] - sorted_fasce[0]).total_seconds() / 60
+                ore_per_fascia = delta_minutes / 60.0
+            else:
+                ore_per_fascia = 0.25  # Default 15 minuti
+        else:
+            ore_per_fascia = 0.25  # Default 15 minuti
+
         skill_filter = self.skill_var.get()
 
         for _, row in df.iterrows():
@@ -547,7 +567,10 @@ class CapabilityDashboard(ttk.Frame):
                     values_list.append(int(valore_giust))
 
                 # Aggiungi valori finali
-                # Nuovo ordine: FTE Eff., FTE Rich., Delta FTE, Volumi FC, Gest. Chiam., Delta FC, Agenti, Prod/h, Capability %, Copertura %, Stato
+                # Nuovo ordine: FTE Eff., FTE Rich., Delta FTE, Volumi FC, Gest. Chiam., Delta FC,
+                #               Agenti, Ag.Produzione, Delta Ag, Prod/h,
+                #               Ore Necessarie, Ore Produz., Delta Ore,
+                #               Capability %, Copertura %, Stato
 
                 # Calcola Delta FTE
                 delta_fte = fte_eff - fte_rich
@@ -555,10 +578,27 @@ class CapabilityDashboard(ttk.Frame):
                 # Calcola Delta FC (forecast)
                 delta_fc = gestibile_chiamate - volumi_fc if volumi_fc > 0 else 0
 
+                # Ag.Produzione = operatori in produzione
+                ag_produzione = in_prod
+
+                # Delta Ag = Ag.Produzione - Agenti Richiesti
+                delta_ag = ag_produzione - agenti_richiesti
+
+                # Ore Necessarie = Agenti Richiesti * ore per fascia
+                ore_necessarie = agenti_richiesti * ore_per_fascia
+
+                # Ore Produzione = Operatori in Produzione * ore per fascia
+                ore_produzione = ag_produzione * ore_per_fascia
+
+                # Delta Ore = Ore Produzione - Ore Necessarie
+                delta_ore = ore_produzione - ore_necessarie
+
                 values_list.extend([
                     f"{fte_eff:.1f}", f"{fte_rich:.1f}", f"{delta_fte:+.1f}",
                     volumi_fc, gestibile_chiamate, f"{delta_fc:+.0f}",
-                    agenti_richiesti, f"{prod_oraria:.1f}",
+                    agenti_richiesti, ag_produzione, f"{delta_ag:+.0f}",
+                    f"{prod_oraria:.1f}",
+                    f"{ore_necessarie:.1f}h", f"{ore_produzione:.1f}h", f"{delta_ore:+.1f}h",
                     f"{capability_pct:.0f}%", f"{copertura:.0f}%", stato
                 ])
 
@@ -587,9 +627,33 @@ class CapabilityDashboard(ttk.Frame):
             else:
                 total_fte = 0
 
-            # Somma FTE richiesti
-            if 'FTE_Richiesti' in df.columns:
-                required_fte = df['FTE_Richiesti'].sum()
+            # Calcola FTE richiesti usando formula: Ore totali / Giorni lavorativi / 8
+            # Determina intervallo in minuti per calcolare ore per fascia
+            if not df.empty and 'Fascia_Oraria' in df.columns:
+                sorted_fasce = sorted(df['Fascia_Oraria'].unique())
+                if len(sorted_fasce) >= 2:
+                    delta_minutes = (sorted_fasce[1] - sorted_fasce[0]).total_seconds() / 60
+                    ore_per_fascia = delta_minutes / 60.0
+                else:
+                    ore_per_fascia = 0.25  # Default 15 minuti
+            else:
+                ore_per_fascia = 0.25  # Default 15 minuti
+
+            # Calcola ore totali richieste
+            if 'Agenti_Richiesti' in df.columns:
+                ore_totali_richieste = df['Agenti_Richiesti'].sum() * ore_per_fascia
+            else:
+                ore_totali_richieste = 0
+
+            # Calcola giorni lavorativi unici nel dataframe
+            if 'Fascia_Oraria' in df.columns and not df.empty:
+                giorni_lavorativi = df['Fascia_Oraria'].dt.date.nunique()
+            else:
+                giorni_lavorativi = 1
+
+            # FTE Richiesti = Ore totali / Giorni lavorativi / 8
+            if giorni_lavorativi > 0:
+                required_fte = ore_totali_richieste / giorni_lavorativi / 8
             else:
                 required_fte = 0
 
