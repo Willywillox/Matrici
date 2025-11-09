@@ -240,7 +240,7 @@ class RiepilogoScreen(ttk.Frame):
                 return
 
             # Calcola rendiconto
-            calculator = CapabilityCalculator(all_operatori)
+            calculator = CapabilityCalculator(all_operatori, db_manager=self.db_manager)
 
             if view_type == 'servizio':
                 df_report = calculator.calcola_rendiconto_per_servizio(data_inizio, data_fine)
@@ -257,8 +257,16 @@ class RiepilogoScreen(ttk.Frame):
 
             self.db_manager.close()
 
-            messagebox.showinfo("Successo", f"Report generato per periodo:\n"
-                                           f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}")
+            if df_report is None or df_report.empty:
+                messagebox.showwarning("Attenzione",
+                                      f"Report generato ma nessun dato trovato per il periodo:\n"
+                                      f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}\n\n"
+                                      f"Verificare che ci siano operatori con attività nel periodo selezionato.")
+            else:
+                messagebox.showinfo("Successo",
+                                   f"Report generato per periodo:\n"
+                                   f"{data_inizio.strftime('%d/%m/%Y')} - {data_fine.strftime('%d/%m/%Y')}\n"
+                                   f"Righe trovate: {len(df_report)}")
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nella generazione report:\n{e}")
@@ -303,33 +311,47 @@ class RiepilogoScreen(ttk.Frame):
 
     def update_summary_cards(self, df, view_type):
         """Aggiorna le cards summary"""
-        # Entrambe le viste ora hanno le stesse colonne
-        ore_produzione = df['Ore_Produzione'].sum()
-        ore_ordinarie = df['Ore_Ordinarie_Turno'].sum()
-        ore_pausa = df['Ore_Pausa'].sum()
-        ore_strao = df['Ore_Straordinario'].sum()
-        ore_assenze = df['Ore_Assenze_Totali'].sum()
-        ore_pianificate = df['Ore_Pianificate'].sum()
+        if df is None or df.empty:
+            # Reset a valori di default
+            for key in self.summary_cards:
+                self.summary_cards[key].config(text="--")
+            return
 
-        # Calcola medie ponderate per le percentuali
-        if ore_ordinarie > 0:
-            estensione_strao = (ore_strao / ore_ordinarie) * 100
-        else:
-            estensione_strao = 0
+        try:
+            # Entrambe le viste ora hanno le stesse colonne
+            ore_produzione = df['Ore_Produzione'].sum() if 'Ore_Produzione' in df.columns else 0
+            ore_ordinarie = df['Ore_Ordinarie_Turno'].sum() if 'Ore_Ordinarie_Turno' in df.columns else 0
+            ore_pausa = df['Ore_Pausa'].sum() if 'Ore_Pausa' in df.columns else 0
+            ore_strao = df['Ore_Straordinario'].sum() if 'Ore_Straordinario' in df.columns else 0
+            ore_assenze = df['Ore_Assenze_Totali'].sum() if 'Ore_Assenze_Totali' in df.columns else 0
+            ore_pianificate = df['Ore_Pianificate'].sum() if 'Ore_Pianificate' in df.columns else 0
 
-        if ore_pianificate > 0:
-            assenteismo = (ore_assenze / ore_pianificate) * 100
-        else:
-            assenteismo = 0
+            # Calcola medie ponderate per le percentuali
+            if ore_ordinarie > 0:
+                estensione_strao = (ore_strao / ore_ordinarie) * 100
+            else:
+                estensione_strao = 0
 
-        self.summary_cards['ore_produzione'].config(text=f"{ore_produzione:.1f} h")
-        self.summary_cards['ore_ordinarie'].config(text=f"{ore_ordinarie:.1f} h")
-        self.summary_cards['ore_pausa'].config(text=f"{ore_pausa:.1f} h")
-        self.summary_cards['ore_strao'].config(text=f"{ore_strao:.1f} h")
-        self.summary_cards['ore_assenze'].config(text=f"{ore_assenze:.1f} h")
-        self.summary_cards['ore_pianificate'].config(text=f"{ore_pianificate:.1f} h")
-        self.summary_cards['estensione_strao'].config(text=f"{estensione_strao:.1f}%")
-        self.summary_cards['assenteismo'].config(text=f"{assenteismo:.1f}%")
+            if ore_pianificate > 0:
+                assenteismo = (ore_assenze / ore_pianificate) * 100
+            else:
+                assenteismo = 0
+
+            self.summary_cards['ore_produzione'].config(text=f"{ore_produzione:.1f} h")
+            self.summary_cards['ore_ordinarie'].config(text=f"{ore_ordinarie:.1f} h")
+            self.summary_cards['ore_pausa'].config(text=f"{ore_pausa:.1f} h")
+            self.summary_cards['ore_strao'].config(text=f"{ore_strao:.1f} h")
+            self.summary_cards['ore_assenze'].config(text=f"{ore_assenze:.1f} h")
+            self.summary_cards['ore_pianificate'].config(text=f"{ore_pianificate:.1f} h")
+            self.summary_cards['estensione_strao'].config(text=f"{estensione_strao:.1f}%")
+            self.summary_cards['assenteismo'].config(text=f"{assenteismo:.1f}%")
+        except Exception as e:
+            print(f"Errore aggiornamento summary cards: {e}")
+            import traceback
+            traceback.print_exc()
+            # Reset a valori di default in caso di errore
+            for key in self.summary_cards:
+                self.summary_cards[key].config(text="--")
 
     def export_excel(self):
         """Esporta report in Excel"""
