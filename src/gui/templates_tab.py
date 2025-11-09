@@ -94,9 +94,16 @@ class TemplatesTab(ttk.Frame):
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
         ttk.Label(skills_card, text="Importa configurazione skill/code del contact center",
                  font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
-        ttk.Button(skills_card, text="📤 Importa Skills",
+
+        # Buttons frame
+        skills_btn_frame = ttk.Frame(skills_card)
+        skills_btn_frame.pack(padx=10, pady=(0, 10))
+        ttk.Button(skills_btn_frame, text="📤 Importa",
                   command=self.importa_skills,
-                  width=25).pack(padx=10, pady=(0, 10))
+                  width=12).pack(side='left', padx=(0, 5))
+        ttk.Button(skills_btn_frame, text="🗑️ Elimina",
+                  command=self.elimina_skills,
+                  width=12).pack(side='left')
 
         # Bottone Importa Turni
         turni_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
@@ -106,9 +113,16 @@ class TemplatesTab(ttk.Frame):
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
         ttk.Label(turni_card, text="Importa turni e orari di lavoro",
                  font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
-        ttk.Button(turni_card, text="📤 Importa Turni",
+
+        # Buttons frame
+        turni_btn_frame = ttk.Frame(turni_card)
+        turni_btn_frame.pack(padx=10, pady=(0, 10))
+        ttk.Button(turni_btn_frame, text="📤 Importa",
                   command=self.importa_turni,
-                  width=25).pack(padx=10, pady=(0, 10))
+                  width=12).pack(side='left', padx=(0, 5))
+        ttk.Button(turni_btn_frame, text="🗑️ Elimina",
+                  command=self.elimina_turni,
+                  width=12).pack(side='left')
 
         # RIGA 2 - Giustificativi e Anagrafica
         # Bottone Importa Giustificativi
@@ -119,9 +133,16 @@ class TemplatesTab(ttk.Frame):
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
         ttk.Label(giust_card, text="Importa codici assenze (Ferie, Malattia, ROL, etc.)",
                  font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
-        ttk.Button(giust_card, text="📤 Importa Giustificativi",
+
+        # Buttons frame
+        giust_btn_frame = ttk.Frame(giust_card)
+        giust_btn_frame.pack(padx=10, pady=(0, 10))
+        ttk.Button(giust_btn_frame, text="📤 Importa",
                   command=self.importa_giustificativi,
-                  width=25).pack(padx=10, pady=(0, 10))
+                  width=12).pack(side='left', padx=(0, 5))
+        ttk.Button(giust_btn_frame, text="🗑️ Elimina",
+                  command=self.elimina_giustificativi,
+                  width=12).pack(side='left')
 
         # Bottone Importa Anagrafica Operatori
         op_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
@@ -131,9 +152,16 @@ class TemplatesTab(ttk.Frame):
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
         ttk.Label(op_card, text="Importa operatori con turni, pause, straordinari",
                  font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
-        ttk.Button(op_card, text="📤 Importa Anagrafica",
+
+        # Buttons frame
+        op_btn_frame = ttk.Frame(op_card)
+        op_btn_frame.pack(padx=10, pady=(0, 10))
+        ttk.Button(op_btn_frame, text="📤 Importa",
                   command=self.importa_anagrafica_operatori,
-                  width=25).pack(padx=10, pady=(0, 10))
+                  width=12).pack(side='left', padx=(0, 5))
+        ttk.Button(op_btn_frame, text="🗑️ Elimina",
+                  command=self.elimina_anagrafica_operatori,
+                  width=12).pack(side='left')
 
         # Configura grid weights per import
         import_grid.columnconfigure(0, weight=1)
@@ -836,6 +864,186 @@ class TemplatesTab(ttk.Frame):
         # Avvia import in thread
         thread = threading.Thread(target=run_import, daemon=True)
         thread.start()
+
+    def elimina_skills(self):
+        """Elimina tutti i record dalla tabella Skills"""
+        try:
+            # Connetti al database e conta i record
+            self.db_manager.connect()
+            result = self.db_manager.execute_query("SELECT COUNT(*) as count FROM Skills")
+            count = result[0]['count'] if result else 0
+            self.db_manager.close()
+
+            if count == 0:
+                messagebox.showinfo("Info", "Nessuna skill presente nel database.")
+                return
+
+            # Conferma eliminazione
+            if not messagebox.askyesno(
+                "Conferma Eliminazione Skills",
+                f"ATTENZIONE!\n\n"
+                f"Stai per eliminare TUTTI i {count} record dalla tabella Skills.\n\n"
+                f"Questa operazione NON può essere annullata!\n\n"
+                f"Continuare?"
+            ):
+                return
+
+            # Elimina
+            self.db_manager.connect()
+            self.db_manager.execute_update("DELETE FROM Skills")
+            self.db_manager.close()
+
+            messagebox.showinfo(
+                "Successo",
+                f"✅ Eliminati {count} record dalla tabella Skills.\n\n"
+                f"Il database è stato pulito con successo."
+            )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante l'eliminazione:\n{e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            try:
+                self.db_manager.close()
+            except:
+                pass
+
+    def elimina_turni(self):
+        """Elimina tutti i record dalla tabella Turni"""
+        try:
+            # Connetti al database e conta i record
+            self.db_manager.connect()
+            result = self.db_manager.execute_query("SELECT COUNT(*) as count FROM Turni")
+            count = result[0]['count'] if result else 0
+            self.db_manager.close()
+
+            if count == 0:
+                messagebox.showinfo("Info", "Nessun turno presente nel database.")
+                return
+
+            # Conferma eliminazione
+            if not messagebox.askyesno(
+                "Conferma Eliminazione Turni",
+                f"ATTENZIONE!\n\n"
+                f"Stai per eliminare TUTTI i {count} record dalla tabella Turni.\n\n"
+                f"Questa operazione NON può essere annullata!\n\n"
+                f"Continuare?"
+            ):
+                return
+
+            # Elimina
+            self.db_manager.connect()
+            self.db_manager.execute_update("DELETE FROM Turni")
+            self.db_manager.close()
+
+            messagebox.showinfo(
+                "Successo",
+                f"✅ Eliminati {count} record dalla tabella Turni.\n\n"
+                f"Il database è stato pulito con successo."
+            )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante l'eliminazione:\n{e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            try:
+                self.db_manager.close()
+            except:
+                pass
+
+    def elimina_giustificativi(self):
+        """Elimina tutti i record dalla tabella Giustificativi"""
+        try:
+            # Connetti al database e conta i record
+            self.db_manager.connect()
+            result = self.db_manager.execute_query("SELECT COUNT(*) as count FROM Giustificativi")
+            count = result[0]['count'] if result else 0
+            self.db_manager.close()
+
+            if count == 0:
+                messagebox.showinfo("Info", "Nessun giustificativo presente nel database.")
+                return
+
+            # Conferma eliminazione
+            if not messagebox.askyesno(
+                "Conferma Eliminazione Giustificativi",
+                f"ATTENZIONE!\n\n"
+                f"Stai per eliminare TUTTI i {count} record dalla tabella Giustificativi.\n\n"
+                f"Questa operazione NON può essere annullata!\n\n"
+                f"NOTA: Se elimini i giustificativi, gli operatori con questi codici\n"
+                f"potrebbero avere problemi nei calcoli!\n\n"
+                f"Continuare?"
+            ):
+                return
+
+            # Elimina
+            self.db_manager.connect()
+            self.db_manager.execute_update("DELETE FROM Giustificativi")
+            self.db_manager.close()
+
+            messagebox.showinfo(
+                "Successo",
+                f"✅ Eliminati {count} record dalla tabella Giustificativi.\n\n"
+                f"Il database è stato pulito con successo."
+            )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante l'eliminazione:\n{e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            try:
+                self.db_manager.close()
+            except:
+                pass
+
+    def elimina_anagrafica_operatori(self):
+        """Elimina tutti i record dalla tabella Anagrafica_Operatori"""
+        try:
+            # Connetti al database e conta i record
+            self.db_manager.connect()
+            result = self.db_manager.execute_query("SELECT COUNT(*) as count FROM Anagrafica_Operatori")
+            count = result[0]['count'] if result else 0
+            self.db_manager.close()
+
+            if count == 0:
+                messagebox.showinfo("Info", "Nessun operatore presente nel database.")
+                return
+
+            # Conferma eliminazione
+            if not messagebox.askyesno(
+                "Conferma Eliminazione Anagrafica Operatori",
+                f"ATTENZIONE!\n\n"
+                f"Stai per eliminare TUTTI i {count} record dalla tabella Anagrafica_Operatori.\n\n"
+                f"Questa operazione NON può essere annullata!\n\n"
+                f"NOTA: Questo eliminerà TUTTI i dati degli operatori inclusi turni,\n"
+                f"pause, straordinari e giustificativi associati!\n\n"
+                f"Continuare?"
+            ):
+                return
+
+            # Elimina
+            self.db_manager.connect()
+            self.db_manager.execute_update("DELETE FROM Anagrafica_Operatori")
+            self.db_manager.close()
+
+            messagebox.showinfo(
+                "Successo",
+                f"✅ Eliminati {count} record dalla tabella Anagrafica_Operatori.\n\n"
+                f"Il database è stato pulito con successo."
+            )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore durante l'eliminazione:\n{e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            try:
+                self.db_manager.close()
+            except:
+                pass
 
 
 class DateSelectionDialog(tk.Toplevel):
