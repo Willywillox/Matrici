@@ -99,24 +99,85 @@ class CapabilityDashboard(ttk.Frame):
         summary_grid = ttk.Frame(summary_frame)
         summary_grid.pack(fill='x')
 
-        # Indicatori colorati
-        indicators = [
-            ('total_fte', 'FTE Totali Disponibili', '#4CAF50'),
-            ('required_fte', 'FTE Richiesti', '#2196F3'),
-            ('delta_fte', 'Delta FTE', '#FF9800'),
-            ('coverage', 'Copertura Media %', '#9C27B0')
+        # Sezione FTE
+        fte_section = ttk.LabelFrame(summary_grid, text="FTE", padding=5)
+        fte_section.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(0, weight=1)
+
+        fte_indicators = [
+            ('required_fte', 'Richiesti', '#2196F3'),
+            ('total_fte', 'Disponibili', '#4CAF50'),
+            ('delta_fte', 'Delta', '#FF9800')
         ]
 
-        for i, (key, label, color) in enumerate(indicators):
-            card = ttk.Frame(summary_grid, relief='raised', borderwidth=2)
-            card.grid(row=0, column=i, padx=10, pady=5, sticky='ew')
-            summary_grid.columnconfigure(i, weight=1)
+        for i, (key, label, color) in enumerate(fte_indicators):
+            card = ttk.Frame(fte_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            fte_section.columnconfigure(i, weight=1)
 
-            ttk.Label(card, text=label, font=('Arial', 9)).pack(pady=(5, 0))
-            value_label = ttk.Label(card, text="--", font=('Arial', 16, 'bold'),
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
                                    foreground=color)
-            value_label.pack(pady=(0, 5))
+            value_label.pack()
             self.summary_labels[key] = value_label
+
+        # Sezione Forecast
+        forecast_section = ttk.LabelFrame(summary_grid, text="Forecast", padding=5)
+        forecast_section.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(1, weight=1)
+
+        forecast_indicators = [
+            ('volumi_attesi', 'Volumi Attesi', '#9C27B0'),
+            ('gestibile', 'Gestibile', '#4CAF50'),
+            ('delta_forecast', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(forecast_indicators):
+            card = ttk.Frame(forecast_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            forecast_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Ore
+        ore_section = ttk.LabelFrame(summary_grid, text="Ore", padding=5)
+        ore_section.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(2, weight=1)
+
+        ore_indicators = [
+            ('ore_richieste', 'Richieste', '#2196F3'),
+            ('ore_produzione', 'Produzione', '#4CAF50'),
+            ('delta_ore', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(ore_indicators):
+            card = ttk.Frame(ore_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            ore_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Copertura
+        coverage_section = ttk.LabelFrame(summary_grid, text="Performance", padding=5)
+        coverage_section.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(3, weight=1)
+
+        coverage_card = ttk.Frame(coverage_section)
+        coverage_card.pack(padx=5, pady=2)
+
+        ttk.Label(coverage_card, text="Copertura Media", font=('Arial', 8)).pack()
+        value_label = ttk.Label(coverage_card, text="--", font=('Arial', 14, 'bold'),
+                               foreground='#9C27B0')
+        value_label.pack()
+        self.summary_labels['coverage'] = value_label
 
         # === TABELLA CAPABILITY ===
         table_frame = ttk.LabelFrame(self, text="Dettaglio Capability per Fascia Oraria", padding=10)
@@ -485,14 +546,16 @@ class CapabilityDashboard(ttk.Frame):
         """Aggiorna il pannello summary"""
         if df is None or df.empty:
             # Mostra valori di default se non ci sono dati
-            self.summary_labels['total_fte'].config(text="0.0")
-            self.summary_labels['required_fte'].config(text="0.0")
-            self.summary_labels['delta_fte'].config(text="0.0", foreground='#4CAF50')
-            self.summary_labels['coverage'].config(text="--", foreground='#9C27B0')
+            for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
+                       'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
+                       'delta_ore', 'coverage']:
+                if key in self.summary_labels:
+                    self.summary_labels[key].config(text="--")
             return
 
         try:
-            # Somma FTE effettivi
+            # === SEZIONE FTE ===
+            # Somma FTE effettivi (Disponibili)
             if 'FTE_Effettivi' in df.columns:
                 total_fte = df['FTE_Effettivi'].sum()
             else:
@@ -504,9 +567,55 @@ class CapabilityDashboard(ttk.Frame):
             else:
                 required_fte = 0
 
-            # Calcola delta
+            # Delta FTE
             delta_fte = total_fte - required_fte
 
+            # === SEZIONE FORECAST ===
+            # Volumi Attesi
+            if 'Volumi_Attesi' in df.columns:
+                volumi_attesi = df['Volumi_Attesi'].sum()
+            else:
+                volumi_attesi = 0
+
+            # Gestibile
+            if 'Gestibile_Chiamate' in df.columns:
+                gestibile = df['Gestibile_Chiamate'].sum()
+            else:
+                gestibile = 0
+
+            # Delta Forecast (Gestibile - Volumi Attesi)
+            delta_forecast = gestibile - volumi_attesi
+
+            # === SEZIONE ORE ===
+            # Determina intervallo in minuti
+            if not df.empty and 'Fascia_Oraria' in df.columns:
+                # Prova a determinare l'intervallo dai dati
+                sorted_fasce = sorted(df['Fascia_Oraria'].unique())
+                if len(sorted_fasce) >= 2:
+                    delta_minutes = (sorted_fasce[1] - sorted_fasce[0]).total_seconds() / 60
+                    ore_per_fascia = delta_minutes / 60.0
+                else:
+                    ore_per_fascia = 0.25  # Default 15 minuti
+            else:
+                ore_per_fascia = 0.25  # Default 15 minuti
+
+            # Ore Produzione (somma operatori in produzione * ore_fascia)
+            if 'In_Produzione' in df.columns:
+                ore_produzione = df['In_Produzione'].sum() * ore_per_fascia
+            else:
+                ore_produzione = 0
+
+            # Ore Richieste (FTE_Richiesti * 8 ore/giorno / numero fasce per giornata * numero fasce)
+            # Alternativa: Agenti_Richiesti * ore_fascia
+            if 'Agenti_Richiesti' in df.columns:
+                ore_richieste = df['Agenti_Richiesti'].sum() * ore_per_fascia
+            else:
+                ore_richieste = 0
+
+            # Delta Ore
+            delta_ore = ore_produzione - ore_richieste
+
+            # === COPERTURA ===
             # Calcola copertura media
             if 'Copertura_%' in df.columns:
                 # Filtra valori validi (non NaN)
@@ -518,16 +627,32 @@ class CapabilityDashboard(ttk.Frame):
             else:
                 avg_coverage = 100
 
-            # Aggiorna labels
-            self.summary_labels['total_fte'].config(text=f"{total_fte:.1f}")
+            # === AGGIORNA LABELS ===
+            # FTE Section
             self.summary_labels['required_fte'].config(text=f"{required_fte:.1f}")
+            self.summary_labels['total_fte'].config(text=f"{total_fte:.1f}")
 
-            # Delta con colore
-            delta_text = f"{delta_fte:+.1f}"
-            delta_color = '#4CAF50' if delta_fte >= 0 else '#F44336'
-            self.summary_labels['delta_fte'].config(text=delta_text, foreground=delta_color)
+            delta_fte_text = f"{delta_fte:+.1f}"
+            delta_fte_color = '#4CAF50' if delta_fte >= 0 else '#F44336'
+            self.summary_labels['delta_fte'].config(text=delta_fte_text, foreground=delta_fte_color)
 
-            # Coverage con colore
+            # Forecast Section
+            self.summary_labels['volumi_attesi'].config(text=f"{int(volumi_attesi)}")
+            self.summary_labels['gestibile'].config(text=f"{int(gestibile)}")
+
+            delta_forecast_text = f"{delta_forecast:+.0f}"
+            delta_forecast_color = '#4CAF50' if delta_forecast >= 0 else '#F44336'
+            self.summary_labels['delta_forecast'].config(text=delta_forecast_text, foreground=delta_forecast_color)
+
+            # Ore Section
+            self.summary_labels['ore_richieste'].config(text=f"{ore_richieste:.1f}h")
+            self.summary_labels['ore_produzione'].config(text=f"{ore_produzione:.1f}h")
+
+            delta_ore_text = f"{delta_ore:+.1f}h"
+            delta_ore_color = '#4CAF50' if delta_ore >= 0 else '#F44336'
+            self.summary_labels['delta_ore'].config(text=delta_ore_text, foreground=delta_ore_color)
+
+            # Coverage
             coverage_text = f"{avg_coverage:.1f}%"
             if avg_coverage >= 95:
                 coverage_color = '#4CAF50'
@@ -539,11 +664,14 @@ class CapabilityDashboard(ttk.Frame):
 
         except Exception as e:
             print(f"Errore aggiornamento summary: {e}")
+            import traceback
+            traceback.print_exc()
             # Valori di fallback
-            self.summary_labels['total_fte'].config(text="--")
-            self.summary_labels['required_fte'].config(text="--")
-            self.summary_labels['delta_fte'].config(text="--", foreground='#9C27B0')
-            self.summary_labels['coverage'].config(text="--", foreground='#9C27B0')
+            for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
+                       'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
+                       'delta_ore', 'coverage']:
+                if key in self.summary_labels:
+                    self.summary_labels[key].config(text="--")
 
     def show_detail(self, event):
         """Mostra dettaglio operatori per fascia selezionata"""

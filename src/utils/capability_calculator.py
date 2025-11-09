@@ -180,9 +180,19 @@ class CapabilityCalculator:
                         stats_per_skill[skill]['in_straordinario'] += 1
                         stats_per_skill[skill]['operatori_in_straordinario'].append(operatore.id_sap)
 
-                    # Conta giustificativi per tipologia
+                    # Conta giustificativi per tipologia (operatori presenti)
                     giust_codice = operatore.get_giustificativo_at_time(orario)
                     if giust_codice and giust_codice in self.giustificativi_map:
+                        tipologia = self.giustificativi_map[giust_codice]
+                        key = f'giust_{tipologia}'
+                        if key in stats_per_skill[skill]:
+                            stats_per_skill[skill][key] += 1
+                else:
+                    # Operatore NON presente - verifica se ha un giustificativo attivo (ferie, malattia, etc.)
+                    giust_codice = operatore.get_giustificativo_at_time(orario)
+                    if giust_codice and giust_codice in self.giustificativi_map:
+                        # Usa lo skill dell'operatore per categorizzare il giustificativo
+                        skill = operatore.etichetta_skill
                         tipologia = self.giustificativi_map[giust_codice]
                         key = f'giust_{tipologia}'
                         if key in stats_per_skill[skill]:
