@@ -678,41 +678,201 @@ class CapabilityCalculator:
     def calcola_rendiconto_per_persona(
         self,
         data_inizio: datetime,
-        data_fine: datetime
+        data_fine: datetime,
+        intervallo_minuti: int = 15
     ) -> pd.DataFrame:
         """
-        Calcola il rendiconto ore per persona
+        Calcola il rendiconto ore per persona con dettaglio giustificativi
 
         Returns:
-            DataFrame con: ID_SAP, Nome, Cognome, Ore_Lavorate, Ore_Straordinario, etc.
+            DataFrame con: ID_SAP, Nome, Cognome, Skill, Ore_Produzione, Ore_Pausa,
+                          Ore_Straordinario, Ore_{Giustificativi}, metriche calcolate
         """
-        rendiconto = []
+        # Genera tutte le fasce nel periodo
+        current_date = data_inizio
+        all_results = []
 
-        for operatore in self.operatori:
-            ore_lavorate = operatore.get_ore_lavorate()
-            ore_straordinario = operatore.get_ore_straordinario()
+        while current_date <= data_fine:
+            df_day = self.calcola_capability_per_fascia(current_date, intervallo_minuti)
+            df_day['Data'] = current_date.date()
+            all_results.append(df_day)
+            current_date += timedelta(days=1)
 
-            # Calcola ore per skill
-            # (questa è una semplificazione - andrebbe fatto per fascia)
-            skill_principale = operatore.etichetta_skill
+        if not all_results:
+            return pd.DataFrame()
 
-            rendiconto.append({
-                'ID_SAP': operatore.id_sap,
-                'Nome': operatore.nome,
-                'Cognome': operatore.cognome,
-                'FTE': operatore.fte,
-                'Skill_Principale': skill_principale,
-                'Ore_Lavorate': ore_lavorate,
-                'Ore_Straordinario': ore_straordinario,
-                'Ore_Ordinarie': ore_lavorate - ore_straordinario
-            })
+        df_all = pd.concat(all_results, ignore_index=True)
 
-        df = pd.DataFrame(rendiconto)
+        # Esplodi gli operatori per aggregare per persona
+        # Dobbiamo processare ogni fascia e creare record per ogni operatore presente
+        records_per_persona = []
+        ore_per_fascia = intervallo_minuti / 60.0
+
+        for _, row in df_all.iterrows():
+            fascia_oraria = row['Fascia_Oraria']
+            skill = row['Skill']
+
+            # Operatori presenti
+            operatori_presenti = row.get('Operatori_Presenti', '').split(', ') if row.get('Operatori_Presenti') else []
+            operatori_in_pausa = row.get('Operatori_In_Pausa', '').split(', ') if row.get('Operatori_In_Pausa') else []
+            operatori_in_produzione = row.get('Operatori_In_Produzione', '').split(', ') if row.get('Operatori_In_Produzione') else []
+            operatori_in_strao = row.get('Operatori_In_Straordinario', '').split(', ') if row.get('Operatori_In_Straordinario') else []
+
+            # Rimuovi stringhe vuote
+            operatori_presenti = [op for op in operatori_presenti if op]
+            operatori_in_pausa = [op for op in operatori_in_pausa if op]
+            operatori_in_produzione = [op for op in operatori_in_produzione if op]
+            operatori_in_strao = [op for op in operatori_in_strao if op]
+
+            # Trova info operatore
+            for op in self.operatori:
+                # Verifica se operatore è nella fascia
+                orario = fascia_oraria.time()
+
+                if op.is_presente(orario) and op.id_sap in operatori_presenti:
+                    # Crea record per questo operatore in questa fascia
+                    record = {
+                        'ID_SAP': op.id_sap,
+                        'Nome': op.nome,
+                        'Cognome': op.cognome,
+                        'Skill': skill,
+                        'Fascia_Oraria': fascia_oraria,
+                        'In_Produzione': 1 if op.id_sap in operatori_in_produzione else 0,
+                        'In_Pausa': 1 if op.id_sap in operatori_in_pausa else 0,
+                        'In_Straordinario': 1 if op.id_sap in operatori_in_strao else 0,
+                    }
+
+                    # Aggiungi giustificativi (se operatore presente, controlla se ha giustificativo)
+                    giust_codice = op.get_giustificativo_at_time(orario)
+                    for tipologia in self.tipologie_giustificativi:
+                        if giust_codice and giust_codice in self.giustificativi_map:
+                            if self.giustificativi_map[giust_codice] == tipologia:
+                                record[tipologia] = 1
+                            else:
+                                record[tipologia] = 0
+                        else:
+                            record[tipologia] = 0
+
+                    records_per_persona.append(record)
+
+                elif not op.is_presente(orario):
+                    # Operatore non presente - verifica se ha giustificativo
+                    giust_codice = op.get_giustificativo_at_time(orario)
+                    if giust_codice and giust_codice in self.giustificativi_map:
+                        tipologia = self.giustificativi_map[giust_codice]
+                        record = {
+                            'ID_SAP': op.id_sap,
+                            'Nome': op.nome,
+                            'Cognome': op.cognome,
+                            'Skill': op.etichetta_skill,
+                            'Fascia_Oraria': fascia_oraria,
+                            'In_Produzione': 0,
+                            'In_Pausa': 0,
+                            'In_Straordinario': 0,
+                        }
+
+                        # Aggiungi il giustificativo
+                        for tip in self.tipologie_giustificativi:
+                            record[tip] = 1 if tip == tipologia else 0
+
+                        records_per_persona.append(record)
+
+        if not records_per_persona:
+            return pd.DataFrame()
+
+        df_persone = pd.DataFrame(records_per_persona)
+
+        # Aggregazione per persona
+        agg_dict = {
+            'Nome': 'first',
+            'Cognome': 'first',
+            'Skill': 'first',
+            'In_Produzione': 'sum',
+            'In_Pausa': 'sum',
+            'In_Straordinario': 'sum'
+        }
+
+        # Aggiungi aggregazione per tipologie giustificativi
+        for tipologia in self.tipologie_giustificativi:
+            if tipologia in df_persone.columns:
+                agg_dict[tipologia] = 'sum'
+
+        rendiconto = df_persone.groupby('ID_SAP').agg(agg_dict).reset_index()
+
+        # Converti contatori in ore
+        rendiconto['Ore_Produzione'] = rendiconto['In_Produzione'] * ore_per_fascia
+        rendiconto['Ore_Pausa'] = rendiconto['In_Pausa'] * ore_per_fascia
+        rendiconto['Ore_Straordinario'] = rendiconto['In_Straordinario'] * ore_per_fascia
+
+        # Converti giustificativi in ore
+        for tipologia in self.tipologie_giustificativi:
+            if tipologia in rendiconto.columns:
+                rendiconto[f'Ore_{tipologia}'] = rendiconto[tipologia] * ore_per_fascia
+
+        # Calcola Ore Ordinarie da Turno (produzione escluso straordinario)
+        rendiconto['Ore_Ordinarie_Turno'] = rendiconto['Ore_Produzione'] - rendiconto['Ore_Straordinario']
+
+        # Calcola Estensione Straordinario = Ore_Strao / Ore_Ordinarie_Turno
+        rendiconto['Estensione_Straordinario_%'] = rendiconto.apply(
+            lambda row: (row['Ore_Straordinario'] / row['Ore_Ordinarie_Turno'] * 100)
+            if row['Ore_Ordinarie_Turno'] > 0 else 0,
+            axis=1
+        )
+
+        # Calcola Ore Assenze Totali (escluso Form)
+        ore_assenze_totali = pd.Series(0, index=rendiconto.index)
+        for tipologia in self.tipologie_giustificativi:
+            col_name = f'Ore_{tipologia}'
+            # Escludi "Form" dal conteggio assenze
+            if col_name in rendiconto.columns and tipologia != 'Form':
+                ore_assenze_totali += rendiconto[col_name].fillna(0)
+
+        rendiconto['Ore_Assenze_Totali'] = ore_assenze_totali
+
+        # Calcola Ore Pianificate = Ore Ordinarie + Assenze
+        rendiconto['Ore_Pianificate'] = rendiconto['Ore_Ordinarie_Turno'] + rendiconto['Ore_Assenze_Totali']
+
+        # Calcola Assenteismo = Ore_Assenze_Totali / Ore_Pianificate
+        rendiconto['Assenteismo_%'] = rendiconto.apply(
+            lambda row: (row['Ore_Assenze_Totali'] / row['Ore_Pianificate'] * 100)
+            if row['Ore_Pianificate'] > 0 else 0,
+            axis=1
+        )
+
+        # Calcola FTE medio
+        giorni_lavorati = (data_fine - data_inizio).days + 1
+        rendiconto['FTE_Medio'] = rendiconto['Ore_Produzione'] / 8.0 / giorni_lavorati
+
+        # Seleziona colonne finali
+        colonne_base = [
+            'ID_SAP',
+            'Cognome',
+            'Nome',
+            'Skill',
+            'Ore_Produzione',
+            'Ore_Ordinarie_Turno',
+            'Ore_Pausa',
+            'Ore_Straordinario',
+            'Estensione_Straordinario_%',
+            'FTE_Medio'
+        ]
+
+        # Aggiungi colonne ore giustificativi
+        colonne_giust = [f'Ore_{tip}' for tip in self.tipologie_giustificativi if f'Ore_{tip}' in rendiconto.columns]
+
+        # Aggiungi colonne di calcolo assenteismo
+        colonne_assenze = [
+            'Ore_Assenze_Totali',
+            'Ore_Pianificate',
+            'Assenteismo_%'
+        ]
+
+        rendiconto = rendiconto[colonne_base + colonne_giust + colonne_assenze]
 
         # Ordina per cognome
-        df = df.sort_values('Cognome')
+        rendiconto = rendiconto.sort_values('Cognome')
 
-        return df
+        return rendiconto
 
     def get_dettaglio_fascia(
         self,

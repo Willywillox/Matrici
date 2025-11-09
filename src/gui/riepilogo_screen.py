@@ -303,32 +303,23 @@ class RiepilogoScreen(ttk.Frame):
 
     def update_summary_cards(self, df, view_type):
         """Aggiorna le cards summary"""
-        if view_type == 'servizio':
-            ore_produzione = df['Ore_Produzione'].sum()
-            ore_ordinarie = df['Ore_Ordinarie_Turno'].sum()
-            ore_pausa = df['Ore_Pausa'].sum()
-            ore_strao = df['Ore_Straordinario'].sum()
-            ore_assenze = df['Ore_Assenze_Totali'].sum()
-            ore_pianificate = df['Ore_Pianificate'].sum()
+        # Entrambe le viste ora hanno le stesse colonne
+        ore_produzione = df['Ore_Produzione'].sum()
+        ore_ordinarie = df['Ore_Ordinarie_Turno'].sum()
+        ore_pausa = df['Ore_Pausa'].sum()
+        ore_strao = df['Ore_Straordinario'].sum()
+        ore_assenze = df['Ore_Assenze_Totali'].sum()
+        ore_pianificate = df['Ore_Pianificate'].sum()
 
-            # Calcola medie ponderate per le percentuali
-            if ore_ordinarie > 0:
-                estensione_strao = (ore_strao / ore_ordinarie) * 100
-            else:
-                estensione_strao = 0
-
-            if ore_pianificate > 0:
-                assenteismo = (ore_assenze / ore_pianificate) * 100
-            else:
-                assenteismo = 0
+        # Calcola medie ponderate per le percentuali
+        if ore_ordinarie > 0:
+            estensione_strao = (ore_strao / ore_ordinarie) * 100
         else:
-            ore_produzione = df['Ore_Lavorate'].sum()
-            ore_ordinarie = df.get('Ore_Ordinarie', pd.Series([0])).sum()
-            ore_pausa = 0  # Non disponibile in report persona
-            ore_strao = df['Ore_Straordinario'].sum()
-            ore_assenze = 0
-            ore_pianificate = 0
             estensione_strao = 0
+
+        if ore_pianificate > 0:
+            assenteismo = (ore_assenze / ore_pianificate) * 100
+        else:
             assenteismo = 0
 
         self.summary_cards['ore_produzione'].config(text=f"{ore_produzione:.1f} h")
