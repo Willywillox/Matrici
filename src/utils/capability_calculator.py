@@ -163,6 +163,19 @@ class CapabilityCalculator:
             stats_per_skill = defaultdict(create_stats_dict)
 
             for operatore in self.operatori:
+                # Salta operatori che non sono per questa data
+                if hasattr(operatore, 'data_riferimento'):
+                    op_date_str = operatore.data_riferimento
+                    # Converti stringa data in oggetto date per confronto
+                    if isinstance(op_date_str, str):
+                        from datetime import datetime as dt
+                        op_date = dt.strptime(op_date_str, '%Y-%m-%d').date()
+                    else:
+                        op_date = op_date_str
+
+                    if op_date != data.date():
+                        continue
+
                 if operatore.is_presente(orario):
                     skill = operatore.get_skill_at_time(orario)
 
@@ -733,6 +746,19 @@ class CapabilityCalculator:
 
         for op in self.operatori:
             for fascia_oraria in fasce_orarie:
+                # Salta se la data dell'operatore non corrisponde alla fascia oraria
+                if hasattr(op, 'data_riferimento'):
+                    op_date_str = op.data_riferimento
+                    # Converti stringa data in oggetto date per confronto
+                    if isinstance(op_date_str, str):
+                        from datetime import datetime as dt
+                        op_date = dt.strptime(op_date_str, '%Y-%m-%d').date()
+                    else:
+                        op_date = op_date_str
+
+                    if op_date != fascia_oraria.date():
+                        continue
+
                 orario = fascia_oraria.time()
 
                 # Crea chiave univoca per evitare duplicati
