@@ -688,94 +688,80 @@ class CapabilityCalculator:
             DataFrame con: ID_SAP, Nome, Cognome, Skill, Ore_Produzione, Ore_Pausa,
                           Ore_Straordinario, Ore_{Giustificativi}, metriche calcolate
         """
-        # Genera tutte le fasce nel periodo
+        # Genera fasce orarie per il periodo
+        fasce_orarie = []
         current_date = data_inizio
-        all_results = []
-
         while current_date <= data_fine:
-            df_day = self.calcola_capability_per_fascia(current_date, intervallo_minuti)
-            df_day['Data'] = current_date.date()
-            all_results.append(df_day)
+            fasce_day = self.genera_fasce_orarie(current_date, intervallo_minuti)
+            fasce_orarie.extend(fasce_day)
             current_date += timedelta(days=1)
 
-        if not all_results:
+        if not fasce_orarie:
             return pd.DataFrame()
 
-        df_all = pd.concat(all_results, ignore_index=True)
-
-        # Esplodi gli operatori per aggregare per persona
-        # Dobbiamo processare ogni fascia e creare record per ogni operatore presente
+        # Processa ogni operatore per ogni fascia
         records_per_persona = []
         ore_per_fascia = intervallo_minuti / 60.0
+        fasce_processate = set()  # Track già processati per evitare duplicati
 
-        for _, row in df_all.iterrows():
-            fascia_oraria = row['Fascia_Oraria']
-            skill = row['Skill']
-
-            # Operatori presenti
-            operatori_presenti = row.get('Operatori_Presenti', '').split(', ') if row.get('Operatori_Presenti') else []
-            operatori_in_pausa = row.get('Operatori_In_Pausa', '').split(', ') if row.get('Operatori_In_Pausa') else []
-            operatori_in_produzione = row.get('Operatori_In_Produzione', '').split(', ') if row.get('Operatori_In_Produzione') else []
-            operatori_in_strao = row.get('Operatori_In_Straordinario', '').split(', ') if row.get('Operatori_In_Straordinario') else []
-
-            # Rimuovi stringhe vuote
-            operatori_presenti = [op for op in operatori_presenti if op]
-            operatori_in_pausa = [op for op in operatori_in_pausa if op]
-            operatori_in_produzione = [op for op in operatori_in_produzione if op]
-            operatori_in_strao = [op for op in operatori_in_strao if op]
-
-            # Trova info operatore
-            for op in self.operatori:
-                # Verifica se operatore è nella fascia
+        for op in self.operatori:
+            for fascia_oraria in fasce_orarie:
                 orario = fascia_oraria.time()
 
-                if op.is_presente(orario) and op.id_sap in operatori_presenti:
-                    # Crea record per questo operatore in questa fascia
-                    record = {
-                        'ID_SAP': op.id_sap,
-                        'Nome': op.nome,
-                        'Cognome': op.cognome,
-                        'Skill': skill,
-                        'Fascia_Oraria': fascia_oraria,
-                        'In_Produzione': 1 if op.id_sap in operatori_in_produzione else 0,
-                        'In_Pausa': 1 if op.id_sap in operatori_in_pausa else 0,
-                        'In_Straordinario': 1 if op.id_sap in operatori_in_strao else 0,
-                    }
+                # Crea chiave univoca per evitare duplicati
+                chiave = (op.id_sap, fascia_oraria)
+                if chiave in fasce_processate:
+                    continue
+                fasce_processate.add(chiave)
 
-                    # Aggiungi giustificativi (se operatore presente, controlla se ha giustificativo)
+                # Inizializza record
+                record = {
+                    'ID_SAP': op.id_sap,
+                    'Nome': op.nome,
+                    'Cognome': op.cognome,
+                    'Skill': op.get_skill_at_time(orario),
+                    'Fascia_Oraria': fascia_oraria,
+                    'In_Produzione': 0,
+                    'In_Pausa': 0,
+                    'In_Straordinario': 0,
+                }
+
+                # Inizializza giustificativi
+                for tipologia in self.tipologie_giustificativi:
+                    record[tipologia] = 0
+
+                # Verifica stato operatore
+                if op.is_presente(orario):
+                    # Operatore presente
+                    if op.is_in_pausa(orario):
+                        record['In_Pausa'] = 1
+                    else:
+                        record['In_Produzione'] = 1
+
+                    if op.is_in_straordinario(orario):
+                        record['In_Straordinario'] = 1
+
+                    # Verifica giustificativo (anche se presente, potrebbe avere permesso/altro)
                     giust_codice = op.get_giustificativo_at_time(orario)
-                    for tipologia in self.tipologie_giustificativi:
-                        if giust_codice and giust_codice in self.giustificativi_map:
-                            if self.giustificativi_map[giust_codice] == tipologia:
-                                record[tipologia] = 1
-                            else:
-                                record[tipologia] = 0
-                        else:
-                            record[tipologia] = 0
+                    if giust_codice and giust_codice in self.giustificativi_map:
+                        tipologia = self.giustificativi_map[giust_codice]
+                        record[tipologia] = 1
 
-                    records_per_persona.append(record)
-
-                elif not op.is_presente(orario):
+                else:
                     # Operatore non presente - verifica se ha giustificativo
                     giust_codice = op.get_giustificativo_at_time(orario)
                     if giust_codice and giust_codice in self.giustificativi_map:
                         tipologia = self.giustificativi_map[giust_codice]
-                        record = {
-                            'ID_SAP': op.id_sap,
-                            'Nome': op.nome,
-                            'Cognome': op.cognome,
-                            'Skill': op.etichetta_skill,
-                            'Fascia_Oraria': fascia_oraria,
-                            'In_Produzione': 0,
-                            'In_Pausa': 0,
-                            'In_Straordinario': 0,
-                        }
+                        record[tipologia] = 1
 
-                        # Aggiungi il giustificativo
-                        for tip in self.tipologie_giustificativi:
-                            record[tip] = 1 if tip == tipologia else 0
+                # Aggiungi solo se c'è qualche attività (presente, in pausa, straordinario o giustificativo)
+                ha_attivita = (record['In_Produzione'] > 0 or
+                              record['In_Pausa'] > 0 or
+                              record['In_Straordinario'] > 0 or
+                              any(record[tip] > 0 for tip in self.tipologie_giustificativi))
 
-                        records_per_persona.append(record)
+                if ha_attivita:
+                    records_per_persona.append(record)
 
         if not records_per_persona:
             return pd.DataFrame()
