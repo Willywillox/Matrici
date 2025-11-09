@@ -13,13 +13,14 @@ import sys
 from datetime import datetime, timedelta, time
 
 
-def crea_template_forecast(output_file='template_forecast.xlsx', data_riferimento=None):
+def crea_template_forecast(output_file='template_forecast.xlsx', data_riferimento=None, intervallo_minuti=15):
     """
     Crea template Excel per import forecast volumi
 
     Args:
         output_file: Nome file output
         data_riferimento: Data di riferimento (default: oggi)
+        intervallo_minuti: Intervallo fasce in minuti (15 o 30, default: 15)
     """
 
     if data_riferimento is None:
@@ -27,12 +28,13 @@ def crea_template_forecast(output_file='template_forecast.xlsx', data_riferiment
     elif isinstance(data_riferimento, str):
         data_riferimento = datetime.strptime(data_riferimento, '%Y-%m-%d').date()
 
-    # Genera fasce orarie ogni 30 minuti (48 fasce in un giorno)
+    # Genera fasce orarie ogni N minuti
+    num_fasce = (24 * 60) // intervallo_minuti  # Numero fasce in 24 ore
     fasce_orarie = []
     current = datetime.combine(data_riferimento, time(0, 0))
-    for i in range(48):  # 24 ore * 2 (ogni 30 minuti)
+    for i in range(num_fasce):
         fasce_orarie.append(current)
-        current += timedelta(minutes=30)
+        current += timedelta(minutes=intervallo_minuti)
 
     # Skills di esempio
     skills = ['CUSTOMER_CARE', 'BACK_OFFICE', 'TECHNICAL_SUPPORT', 'SALES']
@@ -164,10 +166,13 @@ def crea_template_forecast(output_file='template_forecast.xlsx', data_riferiment
                 '',
                 '=== FASCE ORARIE ===',
                 '',
-                'Le fasce sono intervalli di 30 minuti che coprono l\'intera giornata (00:00-23:30).',
-                'Ogni skill deve avere 48 fasce (24 ore x 2).',
+                f'Le fasce sono intervalli di {intervallo_minuti} minuti che coprono l\'intera giornata.',
+                f'Ogni skill deve avere {num_fasce} fasce (24 ore).',
                 '',
-                'Esempio:',
+                'Esempio fasce 15 minuti:',
+                '  00:00, 00:15, 00:30, 00:45, 01:00, ..., 23:30, 23:45',
+                '',
+                'Esempio fasce 30 minuti:',
                 '  00:00, 00:30, 01:00, 01:30, ..., 23:00, 23:30',
                 '',
                 '=== VOLUMI ATTESI ===',
@@ -268,7 +273,8 @@ def crea_template_forecast(output_file='template_forecast.xlsx', data_riferiment
 
     print(f"\n✅ Template forecast creato: {output_file}")
     print(f"\nData riferimento: {data_riferimento.strftime('%Y-%m-%d')}")
-    print(f"Fasce orarie: 48 (ogni 30 minuti)")
+    print(f"Intervallo fasce: {intervallo_minuti} minuti")
+    print(f"Fasce orarie: {num_fasce} (ogni {intervallo_minuti} minuti)")
     print(f"Skills: {len(skills)} ({', '.join(skills)})")
     print(f"Record totali: {len(df)}")
     print("\nSheet create:")
@@ -280,23 +286,49 @@ def crea_template_forecast(output_file='template_forecast.xlsx', data_riferiment
 
 if __name__ == '__main__':
     data = None
+    intervallo = 15  # Default: 15 minuti
 
     if len(sys.argv) > 1:
         if sys.argv[1] == '--help':
-            print("Uso: python crea_template_forecast.py [data] [output_file]")
+            print("Uso: python crea_template_forecast.py [data] [output_file] [--intervallo N]")
+            print("\nParametri:")
+            print("  data: Data in formato YYYY-MM-DD (opzionale, default: oggi)")
+            print("  output_file: Nome file output (opzionale, default: template_forecast.xlsx)")
+            print("  --intervallo N: Intervallo fasce in minuti: 15 o 30 (default: 15)")
             print("\nEsempi:")
             print("  python crea_template_forecast.py")
-            print("  python crea_template_forecast.py 2025-11-08")
-            print("  python crea_template_forecast.py 2025-11-08 forecast_nov.xlsx")
+            print("  python crea_template_forecast.py 2025-11-09")
+            print("  python crea_template_forecast.py 2025-11-09 forecast_nov.xlsx")
+            print("  python crea_template_forecast.py 2025-11-09 forecast_nov.xlsx --intervallo 30")
+            print("  python crea_template_forecast.py --intervallo 15")
             sys.exit(0)
 
-        try:
-            data = datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
-        except ValueError:
-            print(f"❌ Formato data non valido: {sys.argv[1]}")
-            print("Usare formato: YYYY-MM-DD (es: 2025-11-08)")
-            sys.exit(1)
+        # Check per --intervallo
+        if '--intervallo' in sys.argv:
+            idx = sys.argv.index('--intervallo')
+            if idx + 1 < len(sys.argv):
+                try:
+                    intervallo = int(sys.argv[idx + 1])
+                    if intervallo not in [15, 30]:
+                        print(f"❌ Intervallo non valido: {intervallo}")
+                        print("Usare 15 o 30 minuti")
+                        sys.exit(1)
+                except ValueError:
+                    print(f"❌ Valore intervallo non valido: {sys.argv[idx + 1]}")
+                    sys.exit(1)
+            # Rimuovi --intervallo e il suo valore dalla lista argomenti
+            sys.argv = [arg for i, arg in enumerate(sys.argv)
+                       if i != idx and i != idx + 1]
+
+        # Parse data (primo argomento se presente e non è --help)
+        if len(sys.argv) > 1 and sys.argv[1] != '--intervallo':
+            try:
+                data = datetime.strptime(sys.argv[1], '%Y-%m-%d').date()
+            except ValueError:
+                print(f"❌ Formato data non valido: {sys.argv[1]}")
+                print("Usare formato: YYYY-MM-DD (es: 2025-11-09)")
+                sys.exit(1)
 
     output = sys.argv[2] if len(sys.argv) > 2 else 'template_forecast.xlsx'
 
-    crea_template_forecast(output, data)
+    crea_template_forecast(output, data, intervallo)
