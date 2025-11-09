@@ -933,6 +933,33 @@ class ErlangConfigDialog(tk.Toplevel):
             # Raggruppamento per giorno (per vista settimanale)
             ready_per_giorno = {}
 
+            # Determina l'intervallo reale dal forecast (15, 30 o 60 minuti)
+            forecast_interval_minutes = None
+            if len(all_forecast_data) >= 2:
+                # Calcola differenza tra prime due fasce
+                try:
+                    fascia1_str = all_forecast_data[0][1]
+                    fascia2_str = all_forecast_data[1][1]
+
+                    if isinstance(fascia1_str, str):
+                        fascia1_dt = dt.strptime(fascia1_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia1_dt = fascia1_str
+
+                    if isinstance(fascia2_str, str):
+                        fascia2_dt = dt.strptime(fascia2_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia2_dt = fascia2_str
+
+                    diff = (fascia2_dt - fascia1_dt).total_seconds() / 60
+                    forecast_interval_minutes = int(diff)
+                    print(f"[DEBUG] Intervallo forecast rilevato: {forecast_interval_minutes} minuti")
+                except Exception as e:
+                    print(f"[DEBUG] Errore rilevamento intervallo: {e}")
+                    forecast_interval_minutes = interval_minutes
+            else:
+                forecast_interval_minutes = interval_minutes
+
             for data_str, fascia_str, volume in all_forecast_data:
                 if volume is None or volume <= 0:
                     continue
@@ -951,31 +978,32 @@ class ErlangConfigDialog(tk.Toplevel):
 
                 # === CALCOLO AGENTI ERLANG ===
                 if tipo_canale == 'BO':
-                    interval_seconds = interval_minutes * 60
+                    interval_seconds = forecast_interval_minutes * 60
                     agenti_erlang = int(volume * aht / interval_seconds) + 1
                 else:
                     agenti_erlang = calculator.required_agents(
-                        volume, aht, sl_target, sl_seconds, interval_minutes
+                        volume, aht, sl_target, sl_seconds, forecast_interval_minutes
                     )
 
                 # === CALCOLO AGENTI TEORICI ===
-                interval_seconds = interval_minutes * 60
+                # Formula: (Volume × AHT) / Secondi_Disponibili_Fascia
+                interval_seconds = forecast_interval_minutes * 60
                 agenti_teorici_exact = volume * aht / interval_seconds
                 agenti_teorici = int(agenti_teorici_exact)
 
                 # === CALCOLO READY ===
                 agenti_ready = agenti_erlang - agenti_teorici
-                minuti_ready = agenti_ready * interval_minutes
+                minuti_ready = agenti_ready * forecast_interval_minutes
 
                 # Accumula totali
                 total_minuti_ready += minuti_ready
-                total_minuti_erlang += agenti_erlang * interval_minutes
+                total_minuti_erlang += agenti_erlang * forecast_interval_minutes
 
                 # Accumula per giorno
                 if data_str not in ready_per_giorno:
                     ready_per_giorno[data_str] = {'minuti_ready': 0, 'minuti_erlang': 0}
                 ready_per_giorno[data_str]['minuti_ready'] += minuti_ready
-                ready_per_giorno[data_str]['minuti_erlang'] += agenti_erlang * interval_minutes
+                ready_per_giorno[data_str]['minuti_erlang'] += agenti_erlang * forecast_interval_minutes
 
                 # Inserisci in tabella
                 values = (
@@ -1043,7 +1071,8 @@ class ErlangConfigDialog(tk.Toplevel):
 
             # Messaggio riepilogativo
             n_giorni = len(ready_per_giorno)
-            msg = f"Ready calcolato per {len(all_forecast_data)} fasce orarie su {n_giorni} giorni.\n\n"
+            msg = f"Ready calcolato per {len(all_forecast_data)} fasce orarie su {n_giorni} giorni.\n"
+            msg += f"Intervallo forecast: {forecast_interval_minutes} minuti\n\n"
             msg += f"Ready {periodo_label.lower()}: {ready_pct:.1f}%\n"
             msg += f"Ore Ready: {ore_ready:.2f} h\n\n"
 
