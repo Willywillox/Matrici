@@ -380,7 +380,11 @@ class CapabilityCalculator:
         """
         Calcola FTE richiesti usando la produttività calcolata
 
-        Formula: Agenti richiesti = Volume / (Produttività × frazione_ora)
+        Formula corretta:
+        1. Agenti (teste) = Volume / Produttività
+        2. FTE = Agenti / (1 - shrinkage)
+
+        FTE rappresenta il Full Time Equivalent che include lo shrinkage
 
         Args:
             skill: Skill/coda
@@ -388,7 +392,7 @@ class CapabilityCalculator:
             fallback_fte: Valore di fallback se Erlang non configurato
 
         Returns:
-            FTE richiesti calcolati con produttività
+            FTE richiesti calcolati con produttività e shrinkage
         """
         # Se non ci sono volumi, ritorna 0
         if volumi <= 0:
@@ -407,17 +411,23 @@ class CapabilityCalculator:
         interval_minutes = config.get('interval_minutes', 15)
         frazione_ora = interval_minutes / 60.0
 
-        # Calcola agenti richiesti
-        # Volume / (Produttività × frazione_ora) = Agenti necessari
+        # Produttività per questa fascia
         produttivita_fascia = produttivita_oraria * frazione_ora
 
         if produttivita_fascia > 0:
+            # Calcola AGENTI necessari (numero di teste)
             agenti_richiesti = volumi / produttivita_fascia
+
+            # Converti Agenti in FTE considerando lo shrinkage
+            # FTE = Agenti / (1 - shrinkage)
+            # Perché: Agenti = FTE × (1 - shrinkage)
+            shrinkage = config.get('shrinkage', 0.30)
+            fte_richiesti = agenti_richiesti / (1 - shrinkage)
         else:
             # Fallback se produttività è zero
-            agenti_richiesti = fallback_fte
+            fte_richiesti = fallback_fte
 
-        return agenti_richiesti
+        return fte_richiesti
 
     def _calculate_required_agents_from_fte(self, skill: str, fte_richiesti: float) -> int:
         """
