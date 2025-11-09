@@ -332,8 +332,11 @@ class ErlangConfigDialog(tk.Toplevel):
 
         # Etichetta informativa
         if not self.available_skills and self.mode == 'add':
-            ttk.Label(skill_frame, text="  ⚠️ Digita manualmente (Skills vuoto)",
-                     foreground='#FF9800', font=('Arial', 8)).pack(side='left', padx=5)
+            ttk.Label(skill_frame, text="  💡 Digita manualmente lo skill (es: CMB, Voice, Chat)",
+                     foreground='#2196F3', font=('Arial', 8)).pack(side='left', padx=5)
+        elif self.mode == 'add':
+            ttk.Label(skill_frame, text="  💡 Seleziona o digita uno skill",
+                     foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
 
         row += 1
 
@@ -1002,13 +1005,13 @@ class ErlangConfigDialog(tk.Toplevel):
             self.asa_label.config(foreground='#CCC')
 
     def _load_skills(self):
-        """Carica elenco skills dal database (sia da Skills che da Erlang_Config)"""
+        """Carica elenco skills dal database (da Skills, Erlang_Config e Forecast)"""
         skills_set = set()
 
         try:
             self.db_manager.connect()
 
-            # Prova a caricare dalla tabella Skills
+            # 1. Prova a caricare dalla tabella Skills
             try:
                 result = self.db_manager.execute_query("""
                     SELECT DISTINCT Codice_Skill
@@ -1025,7 +1028,7 @@ class ErlangConfigDialog(tk.Toplevel):
             except Exception as e:
                 print(f"[DEBUG] Tabella Skills non disponibile: {e}")
 
-            # Carica anche gli skills già configurati in Erlang_Config
+            # 2. Carica anche gli skills già configurati in Erlang_Config
             try:
                 result = self.db_manager.execute_query("""
                     SELECT DISTINCT Skill
@@ -1040,11 +1043,32 @@ class ErlangConfigDialog(tk.Toplevel):
             except Exception as e:
                 print(f"[DEBUG] Nessuno skill in Erlang_Config: {e}")
 
+            # 3. Carica anche dalla tabella Forecast (se esiste)
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Skill
+                    FROM Forecast
+                    WHERE Skill IS NOT NULL AND Skill != ''
+                    ORDER BY Skill
+                """)
+
+                if result:
+                    skills_from_forecast = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_forecast)
+                    print(f"[DEBUG] Caricati {len(skills_from_forecast)} skills dalla tabella Forecast")
+            except Exception as e:
+                print(f"[DEBUG] Tabella Forecast non disponibile: {e}")
+
             self.db_manager.close()
 
             # Converti set in lista ordinata
             self.available_skills = sorted(list(skills_set))
             print(f"[DEBUG] Totale skills disponibili: {len(self.available_skills)} - {self.available_skills}")
+
+            # Se nessuno skill trovato, aggiungi un messaggio di avviso
+            if not self.available_skills:
+                print("[AVVISO] Nessuno skill trovato nel database. Le tabelle potrebbero essere vuote.")
+                print("         L'utente può comunque digitare manualmente lo skill nella combo box.")
 
         except Exception as e:
             self.available_skills = []
