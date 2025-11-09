@@ -153,11 +153,15 @@ class Operatore:
         return None
 
     def _is_in_range(self, orario: time, inizio: time, fine: time) -> bool:
-        """Verifica se un orario è compreso in un range"""
+        """
+        Verifica se un orario è compreso in un range.
+        Usa semantica [inizio, fine) - inizio INCLUSO, fine ESCLUSA.
+        Questo evita di contare 2 volte gli slot al confine tra ranges.
+        """
         if fine < inizio:  # Range attraversa mezzanotte
-            return orario >= inizio or orario <= fine
+            return orario >= inizio or orario < fine
         else:
-            return inizio <= orario <= fine
+            return inizio <= orario < fine
 
     def get_ore_lavorate(self) -> float:
         """Calcola le ore totali lavorate nella giornata"""
