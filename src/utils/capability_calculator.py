@@ -244,18 +244,39 @@ class CapabilityCalculator:
                 continue
 
             # Parse fascia_oraria - converte stringa "HH:MM" in datetime per il merge
-            fascia_str = f['Fascia_Oraria']
-            if isinstance(fascia_str, str):
-                # Crea datetime combinando data + ora
+            fascia_value = f['Fascia_Oraria']
+
+            if isinstance(fascia_value, str):
+                # Caso 1: String "HH:MM" - combina con data
                 try:
-                    time_parts = fascia_str.split(':')
-                    hour = int(time_parts[0])
-                    minute = int(time_parts[1]) if len(time_parts) > 1 else 0
-                    fascia_datetime = datetime.combine(data.date(), datetime.min.time().replace(hour=hour, minute=minute))
+                    # Controlla se è un datetime completo come stringa
+                    if ' ' in fascia_value or 'T' in fascia_value:
+                        # È un datetime completo come stringa
+                        fascia_datetime = pd.to_datetime(fascia_value)
+                    else:
+                        # È solo ora "HH:MM"
+                        time_parts = fascia_value.split(':')
+                        hour = int(time_parts[0])
+                        minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                        fascia_datetime = datetime.combine(data.date(), datetime.min.time().replace(hour=hour, minute=minute))
                 except:
                     continue
+            elif isinstance(fascia_value, datetime):
+                # Caso 2: Già datetime - verifica che abbia la data corretta
+                if fascia_value.date() != data.date():
+                    # Se ha una data diversa, prendi solo l'ora e combina con data corrente
+                    fascia_datetime = datetime.combine(data.date(), fascia_value.time())
+                else:
+                    fascia_datetime = fascia_value
             else:
-                fascia_datetime = fascia_str
+                # Caso 3: Altro tipo (es: pd.Timestamp) - converti
+                try:
+                    fascia_datetime = pd.to_datetime(fascia_value)
+                    # Assicura data corretta
+                    if fascia_datetime.date() != data.date():
+                        fascia_datetime = datetime.combine(data.date(), fascia_datetime.time())
+                except:
+                    continue
 
             forecast_records.append({
                 'Fascia_Oraria': fascia_datetime,
