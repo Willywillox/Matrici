@@ -618,7 +618,8 @@ class CapabilityCalculator:
             if tipologia in df_all.columns:
                 agg_dict[tipologia] = 'sum'
 
-        rendiconto = df_all.groupby('Skill').agg(agg_dict).reset_index()
+        # Aggrega per Skill E Data per avere dettaglio giornaliero
+        rendiconto = df_all.groupby(['Skill', 'Data']).agg(agg_dict).reset_index()
 
         # Converti contatori in ore
         rendiconto['Ore_Totali_Presenza'] = rendiconto['Presenti'] * ore_per_fascia
@@ -670,6 +671,7 @@ class CapabilityCalculator:
         # Seleziona colonne finali
         colonne_base = [
             'Skill',
+            'Data',  # Aggiungi Data per mostrare dettaglio giornaliero
             'Ore_Totali_Presenza',
             'Ore_Produzione',
             'Ore_Ordinarie_Turno',
@@ -747,6 +749,7 @@ class CapabilityCalculator:
                     'Nome': op.nome,
                     'Cognome': op.cognome,
                     'Skill': skill if skill else 'N/A',
+                    'Data': fascia_oraria.date(),  # Aggiungi data per aggregazione giornaliera
                     'Fascia_Oraria': fascia_oraria,
                     'In_Produzione': 0,
                     'In_Pausa': 0,
@@ -800,7 +803,7 @@ class CapabilityCalculator:
         print(f"[DEBUG] DataFrame creato con colonne: {df_persone.columns.tolist()}")
         print(f"[DEBUG] Righe nel DataFrame: {len(df_persone)}")
 
-        # Aggregazione per persona
+        # Aggregazione per persona E data (dettaglio giornaliero)
         agg_dict = {
             'Nome': 'first',
             'Cognome': 'first',
@@ -818,7 +821,8 @@ class CapabilityCalculator:
         print(f"[DEBUG] Aggregazione con chiavi: {list(agg_dict.keys())}")
 
         try:
-            rendiconto = df_persone.groupby('ID_SAP').agg(agg_dict).reset_index()
+            # Aggrega per ID_SAP E Data per avere dettaglio giornaliero
+            rendiconto = df_persone.groupby(['ID_SAP', 'Data']).agg(agg_dict).reset_index()
             print(f"[DEBUG] Aggregazione completata, righe: {len(rendiconto)}")
         except Exception as e:
             print(f"[ERROR] Errore durante aggregazione: {e}")
@@ -872,6 +876,7 @@ class CapabilityCalculator:
         # Seleziona colonne finali
         colonne_base = [
             'ID_SAP',
+            'Data',  # Aggiungi Data per mostrare dettaglio giornaliero
             'Cognome',
             'Nome',
             'Skill',
