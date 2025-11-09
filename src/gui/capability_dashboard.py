@@ -192,7 +192,7 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview - colonne dinamiche con giustificativi
         base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
-        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Prod/h', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
+        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Agenti', 'Prod/h', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
 
         # Inserisci colonne giustificativi tra In Strao e FTE Eff.
         columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
@@ -216,6 +216,7 @@ class CapabilityDashboard(ttk.Frame):
             'FTE Eff.': 70,
             'Volumi FC': 90,
             'FTE Rich.': 80,
+            'Agenti': 60,
             'Prod/h': 70,
             'Richiesto': 80,
             'Gest. Chiam.': 90,
@@ -536,9 +537,10 @@ class CapabilityDashboard(ttk.Frame):
                     values_list.append(int(valore_giust))
 
                 # Aggiungi valori finali
-                # Ordine: FTE Eff., Volumi FC, FTE Rich., Prod/h, Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
+                # Ordine: FTE Eff., Volumi FC, FTE Rich., Agenti, Prod/h, Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
+                # Nota: "Richiesto" è lo stesso di "Agenti" (agenti richiesti)
                 values_list.extend([
-                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", f"{prod_oraria:.1f}",
+                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", agenti_richiesti, f"{prod_oraria:.1f}",
                     agenti_richiesti, gestibile_chiamate,
                     f"{capability_pct:.0f}%", f"{delta:+.1f}", f"{copertura:.0f}%", stato
                 ])

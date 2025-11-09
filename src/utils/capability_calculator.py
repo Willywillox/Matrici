@@ -460,6 +460,8 @@ class CapabilityCalculator:
         2. Minuto Utile = 60 × (1 - shrinkage) × (1 - occupancy)
         3. Produttività oraria = (Minuto Utile × 60) / AHT
 
+        Per BO: Available = 0 (nessun tempo di attesa)
+
         Args:
             skill: Nome dello skill
             volume_riferimento: Volume chiamate di riferimento per calcolo Erlang (default 100)
@@ -474,16 +476,21 @@ class CapabilityCalculator:
             sl_target = config.get('service_level_target', 0.80)
             sl_seconds = config.get('service_level_seconds', 20)
             interval_minutes = config.get('interval_minutes', 30)
+            tipo_canale = config.get('tipo_canale', 'Voice')
 
             try:
-                # Calcola occupancy con Erlang C
-                traffic = self.erlang_calculator.calculate_traffic_intensity(
-                    volume_riferimento, aht_seconds, interval_minutes
-                )
-                agenti = self.erlang_calculator.required_agents(
-                    volume_riferimento, aht_seconds, sl_target, sl_seconds, interval_minutes
-                )
-                occupancy = self.erlang_calculator.calculate_occupancy(traffic, agenti)
+                if tipo_canale == 'BO':
+                    # BO: Nessun Service Level, Available = 0
+                    occupancy = 0.0
+                else:
+                    # Voice/Chat: Calcola occupancy con Erlang C
+                    traffic = self.erlang_calculator.calculate_traffic_intensity(
+                        volume_riferimento, aht_seconds, interval_minutes
+                    )
+                    agenti = self.erlang_calculator.required_agents(
+                        volume_riferimento, aht_seconds, sl_target, sl_seconds, interval_minutes
+                    )
+                    occupancy = self.erlang_calculator.calculate_occupancy(traffic, agenti)
 
                 # Calcola Minuto Utile: 60 × (1 - shrinkage) × (1 - occupancy)
                 minuto_utile = 60 * (1 - shrinkage) * (1 - occupancy)

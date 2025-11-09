@@ -134,14 +134,22 @@ class ErlangConfigTab(ttk.Frame):
                     # Usa volume di riferimento standard di 100 chiamate
                     volume_ref = 100
                     try:
-                        traffic = calculator.calculate_traffic_intensity(
-                            volume_ref, aht or 180, interval or 30
-                        )
-                        agenti = calculator.required_agents(
-                            volume_ref, aht or 180, sl_target or 0.8,
-                            sl_seconds or 20, interval or 30
-                        )
-                        available = calculator.calculate_occupancy(traffic, agenti)
+                        if tipo_canale == 'BO':
+                            # BO: Calcolo semplice solo su AHT
+                            interval_seconds = (interval or 30) * 60
+                            agenti = int(volume_ref * (aht or 180) / interval_seconds) + 1
+                            available = 0.0
+                        else:
+                            # Voice/Chat: Usa Erlang C
+                            traffic = calculator.calculate_traffic_intensity(
+                                volume_ref, aht or 180, interval or 30
+                            )
+                            agenti = calculator.required_agents(
+                                volume_ref, aht or 180, sl_target or 0.8,
+                                sl_seconds or 20, interval or 30
+                            )
+                            available = calculator.calculate_occupancy(traffic, agenti)
+
                         minuto_utile = 60 * (1 - (shrinkage or 0.3)) * (1 - available)
                         produttivita = (minuto_utile * (interval or 30)) / (aht or 180)
 
@@ -173,7 +181,7 @@ class ErlangConfigTab(ttk.Frame):
                     )
 
                     # Tag colore per tipo canale
-                    tag = 'voice' if tipo_canale == 'Voice' else 'chat' if tipo_canale == 'Chat' else 'email'
+                    tag = 'voice' if tipo_canale == 'Voice' else 'chat' if tipo_canale == 'Chat' else 'bo'
                     self.tree.insert('', 'end', values=values, tags=(tag,))
 
             self.db_manager.close()
@@ -181,7 +189,7 @@ class ErlangConfigTab(ttk.Frame):
             # Tag colors
             self.tree.tag_configure('voice', background='#E8F4F8')
             self.tree.tag_configure('chat', background='#FFF4E6')
-            self.tree.tag_configure('email', background='#F0F4F8')
+            self.tree.tag_configure('bo', background='#E8F5E9')
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore caricamento configurazioni:\n{e}")
@@ -339,8 +347,8 @@ class ErlangConfigDialog(tk.Toplevel):
                        value='Voice', command=self.on_canale_change).pack(side='left', padx=5)
         ttk.Radiobutton(canale_frame, text="💬 Chat", variable=self.vars['tipo_canale'],
                        value='Chat', command=self.on_canale_change).pack(side='left', padx=5)
-        ttk.Radiobutton(canale_frame, text="📧 Email", variable=self.vars['tipo_canale'],
-                       value='Email', command=self.on_canale_change).pack(side='left', padx=5)
+        ttk.Radiobutton(canale_frame, text="📋 BO", variable=self.vars['tipo_canale'],
+                       value='BO', command=self.on_canale_change).pack(side='left', padx=5)
         row += 1
 
         # === SEZIONE PARAMETRI OPERATIVI ===
@@ -554,9 +562,9 @@ class ErlangConfigDialog(tk.Toplevel):
         info_text = (
             "VOICE: AHT tipico 180-300s, SL 80% in 20s, Concurrency = 1\n"
             "CHAT: AHT tipico 120-240s, ASA target 60s, Concurrency 2-4 (chat simultanee)\n"
-            "EMAIL: AHT tipico 300-600s, SL 75% in 4h, Concurrency = 1\n\n"
+            "BO: AHT tipico 300-600s, Nessun SL (lavoro senza attesa), Concurrency = 1\n\n"
             "Shrinkage tipico: 25-35% (include pause, formazione, riunioni)\n"
-            "Occupancy tipico: 80-90% (tempo effettivo in attività produttiva)"
+            "Available: calcolato da Erlang C per Voice/Chat, 0% per BO"
         )
         ttk.Label(info_frame, text=info_text, justify='left',
                  font=('Arial', 9), foreground='#555').pack()
@@ -589,29 +597,43 @@ class ErlangConfigDialog(tk.Toplevel):
             sl_seconds = self.vars['service_level_seconds'].get()
             interval_minutes = self.vars['interval_minutes'].get()
             volume = self.vars['volume_riferimento'].get()
+            tipo_canale = self.vars['tipo_canale'].get()
 
             # Valida valori
             if aht <= 0 or interval_minutes <= 0 or volume <= 0:
                 self._reset_calculated_fields()
                 return
 
-            if not (0 < shrinkage < 1) or not (0 < sl_target <= 1):
+            if not (0 < shrinkage < 1):
                 self._reset_calculated_fields()
                 return
 
-            # === CALCOLO ERLANG C ===
+            # === CALCOLO BASATO SU TIPO CANALE ===
             calculator = ErlangCalculator()
 
-            # Calcola traffic intensity
-            traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
+            if tipo_canale == 'BO':
+                # BO: Nessun Service Level, Available = 0
+                # Agenti calcolati solo su base AHT
+                interval_seconds = interval_minutes * 60
+                agenti = int(volume * aht / interval_seconds) + 1  # +1 per arrotondamento sicurezza
+                available = 0.0  # Nessun tempo di attesa per BO
 
-            # Calcola agenti necessari per raggiungere Service Level target
-            agenti = calculator.required_agents(
-                volume, aht, sl_target, sl_seconds, interval_minutes
-            )
+            else:
+                # Voice/Chat: Usa Erlang C
+                if not (0 < sl_target <= 1):
+                    self._reset_calculated_fields()
+                    return
 
-            # Calcola occupancy (Available %)
-            available = calculator.calculate_occupancy(traffic, agenti)
+                # Calcola traffic intensity
+                traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
+
+                # Calcola agenti necessari per raggiungere Service Level target
+                agenti = calculator.required_agents(
+                    volume, aht, sl_target, sl_seconds, interval_minutes
+                )
+
+                # Calcola occupancy (Available %)
+                available = calculator.calculate_occupancy(traffic, agenti)
 
             # === CALCOLO MINUTO UTILE ===
             # Formula: 60 × (1 - shrinkage) × (1 - available)
@@ -695,16 +717,16 @@ class ErlangConfigDialog(tk.Toplevel):
             self.asa_entry.config(state='normal')
             self.asa_label.config(foreground='#666')
 
-        else:  # Email
-            # Email: concurrency = 1, usa SL con tempi lunghi
+        else:  # BO (Back Office)
+            # BO: concurrency = 1, nessun SL o ASA (lavoro senza attesa)
             self.vars['concurrency'].set(1)
             self.concurrency_entry.config(state='disabled')
             self.concurrency_label.config(foreground='#CCC')
 
-            self.sl_target_entry.config(state='normal')
-            self.sl_seconds_entry.config(state='normal')
-            self.sl_target_label.config(foreground='#666')
-            self.sl_seconds_label.config(foreground='#666')
+            self.sl_target_entry.config(state='disabled')
+            self.sl_seconds_entry.config(state='disabled')
+            self.sl_target_label.config(foreground='#CCC')
+            self.sl_seconds_label.config(foreground='#CCC')
 
             self.asa_entry.config(state='disabled')
             self.asa_label.config(foreground='#CCC')
