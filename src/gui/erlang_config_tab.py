@@ -481,8 +481,20 @@ class ErlangConfigDialog(tk.Toplevel):
                  font=('Arial', 11, 'bold'), foreground='#673AB7').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
         row += 1
 
+        # Tipo proiezione (Giorno/Settimana)
+        ttk.Label(form, text="Proiezione:").grid(row=row, column=0, sticky='w', pady=5)
+        proiezione_frame = ttk.Frame(form)
+        proiezione_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        self.vars['proiezione_ready'] = tk.StringVar(value='giorno')
+        ttk.Radiobutton(proiezione_frame, text="📅 Giorno", variable=self.vars['proiezione_ready'],
+                       value='giorno').pack(side='left', padx=5)
+        ttk.Radiobutton(proiezione_frame, text="📊 Settimana", variable=self.vars['proiezione_ready'],
+                       value='settimana').pack(side='left', padx=5)
+        row += 1
+
         # Seleziona Data Forecast
-        ttk.Label(form, text="Data Forecast:").grid(row=row, column=0, sticky='w', pady=5)
+        ttk.Label(form, text="Data Inizio:").grid(row=row, column=0, sticky='w', pady=5)
         data_frame = ttk.Frame(form)
         data_frame.grid(row=row, column=1, sticky='w', pady=5)
 
@@ -495,6 +507,8 @@ class ErlangConfigDialog(tk.Toplevel):
 
         ttk.Button(data_frame, text="Carica Forecast",
                   command=self.load_forecast_ready).pack(side='left', padx=5)
+        ttk.Label(data_frame, text="  (per settimana: 7 giorni dalla data)",
+                 foreground='#888', font=('Arial', 8)).pack(side='left', padx=5)
         row += 1
 
         # Tabella Ready
@@ -505,15 +519,17 @@ class ErlangConfigDialog(tk.Toplevel):
         ready_scroll = ttk.Scrollbar(ready_table_frame, orient='vertical')
         ready_scroll.pack(side='right', fill='y')
 
-        # Treeview per ready
-        ready_cols = ('Fascia', 'Volume', 'Ag.Erlang', 'Ag.Teorici', 'Ag.Ready', 'Min.Ready')
+        # Treeview per ready (con colonna Giorno per vista settimanale)
+        ready_cols = ('Giorno', 'Fascia', 'Volume', 'Ag.Erlang', 'Ag.Teorici', 'Ag.Ready', 'Min.Ready')
         self.ready_tree = ttk.Treeview(ready_table_frame, columns=ready_cols, show='headings',
-                                       yscrollcommand=ready_scroll.set, height=8)
+                                       yscrollcommand=ready_scroll.set, height=10)
         ready_scroll.config(command=self.ready_tree.yview)
 
+        column_widths = {'Giorno': 90, 'Fascia': 60, 'Volume': 70, 'Ag.Erlang': 80,
+                        'Ag.Teorici': 80, 'Ag.Ready': 70, 'Min.Ready': 80}
         for col in ready_cols:
             self.ready_tree.heading(col, text=col)
-            self.ready_tree.column(col, width=70, anchor='center')
+            self.ready_tree.column(col, width=column_widths.get(col, 70), anchor='center')
 
         self.ready_tree.pack(fill='both', expand=True)
         row += 1
@@ -522,8 +538,9 @@ class ErlangConfigDialog(tk.Toplevel):
         ready_summary_frame = ttk.Frame(form)
         ready_summary_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=5)
 
-        ttk.Label(ready_summary_frame, text="Ready % Giornaliero:",
-                 font=('Arial', 10, 'bold')).pack(side='left', padx=5)
+        self.ready_summary_title = ttk.Label(ready_summary_frame, text="Ready %:",
+                 font=('Arial', 10, 'bold'))
+        self.ready_summary_title.pack(side='left', padx=5)
         self.ready_pct_label = ttk.Label(ready_summary_frame, text="--",
                                         font=('Arial', 12, 'bold'), foreground='#673AB7')
         self.ready_pct_label.pack(side='left', padx=5)
@@ -747,7 +764,7 @@ class ErlangConfigDialog(tk.Toplevel):
         self.productivity_formula_label.config(text="Formula: Minuto Utile × Intervallo / AHT")
 
     def load_forecast_ready(self):
-        """Carica forecast e calcola Ready per la data selezionata"""
+        """Carica forecast e calcola Ready per la data selezionata (giorno o settimana)"""
         # Pulisci tabella ready
         for item in self.ready_tree.get_children():
             self.ready_tree.delete(item)
@@ -763,7 +780,8 @@ class ErlangConfigDialog(tk.Toplevel):
                 messagebox.showwarning("Attenzione", "Seleziona prima uno Skill")
                 return
 
-            data_forecast = self.vars['data_forecast'].get()
+            data_inizio = self.vars['data_forecast'].get()
+            proiezione = self.vars['proiezione_ready'].get()
             aht = self.vars['aht_seconds'].get()
             shrinkage = self.vars['shrinkage'].get() / 100.0
             sl_target = self.vars['service_level_target'].get() / 100.0
@@ -776,25 +794,38 @@ class ErlangConfigDialog(tk.Toplevel):
                 messagebox.showerror("Errore", "AHT e Intervallo devono essere maggiori di 0")
                 return
 
+            # Calcola date da caricare
+            from datetime import datetime as dt, timedelta
+            dt_inizio = dt.strptime(data_inizio, '%Y-%m-%d')
+
+            if proiezione == 'settimana':
+                date_da_caricare = [(dt_inizio + timedelta(days=i)).strftime('%Y-%m-%d')
+                                   for i in range(7)]
+            else:
+                date_da_caricare = [data_inizio]
+
             # Carica forecast dal database
-            from datetime import datetime as dt
             self.db_manager.connect()
 
-            # Query forecast per data e skill
-            query = """
-                SELECT Fascia_Oraria, Volume
-                FROM Forecast
-                WHERE date(Fascia_Oraria) = date(?)
-                  AND Skill = ?
-                ORDER BY Fascia_Oraria
-            """
+            all_forecast_data = []
+            for data in date_da_caricare:
+                query = """
+                    SELECT Fascia_Oraria, Volume
+                    FROM Forecast
+                    WHERE date(Fascia_Oraria) = date(?)
+                      AND Skill = ?
+                    ORDER BY Fascia_Oraria
+                """
+                forecast_data = self.db_manager.execute_query(query, (data, skill))
+                if forecast_data:
+                    all_forecast_data.extend([(data, fascia, vol) for fascia, vol in forecast_data])
 
-            forecast_data = self.db_manager.execute_query(query, (data_forecast, skill))
             self.db_manager.close()
 
-            if not forecast_data or len(forecast_data) == 0:
+            if not all_forecast_data or len(all_forecast_data) == 0:
+                periodo = "settimana" if proiezione == 'settimana' else "giorno"
                 messagebox.showinfo("Info",
-                    f"Nessun dato forecast trovato per skill '{skill}' in data {data_forecast}")
+                    f"Nessun dato forecast trovato per skill '{skill}' nel {periodo} selezionato")
                 return
 
             # === CALCOLO READY ===
@@ -804,7 +835,10 @@ class ErlangConfigDialog(tk.Toplevel):
             total_minuti_ready = 0.0
             total_minuti_erlang = 0.0
 
-            for fascia_str, volume in forecast_data:
+            # Raggruppamento per giorno (per vista settimanale)
+            ready_per_giorno = {}
+
+            for data_str, fascia_str, volume in all_forecast_data:
                 if volume is None or volume <= 0:
                     continue
 
@@ -815,23 +849,21 @@ class ErlangConfigDialog(tk.Toplevel):
                     else:
                         fascia_dt = fascia_str
                     fascia_display = fascia_dt.strftime('%H:%M')
+                    giorno_display = fascia_dt.strftime('%a %d/%m')
                 except:
-                    fascia_display = str(fascia_str)[:5]  # Primi 5 caratteri
+                    fascia_display = str(fascia_str)[:5]
+                    giorno_display = data_str
 
                 # === CALCOLO AGENTI ERLANG ===
                 if tipo_canale == 'BO':
-                    # BO: calcolo semplice
                     interval_seconds = interval_minutes * 60
                     agenti_erlang = int(volume * aht / interval_seconds) + 1
                 else:
-                    # Voice/Chat: usa Erlang C
                     agenti_erlang = calculator.required_agents(
                         volume, aht, sl_target, sl_seconds, interval_minutes
                     )
 
                 # === CALCOLO AGENTI TEORICI ===
-                # Formula: Volume / (Interval_seconds / AHT)
-                # Equivalente a: Volume * AHT / Interval_seconds
                 interval_seconds = interval_minutes * 60
                 agenti_teorici_exact = volume * aht / interval_seconds
                 agenti_teorici = int(agenti_teorici_exact)
@@ -844,8 +876,15 @@ class ErlangConfigDialog(tk.Toplevel):
                 total_minuti_ready += minuti_ready
                 total_minuti_erlang += agenti_erlang * interval_minutes
 
+                # Accumula per giorno
+                if data_str not in ready_per_giorno:
+                    ready_per_giorno[data_str] = {'minuti_ready': 0, 'minuti_erlang': 0}
+                ready_per_giorno[data_str]['minuti_ready'] += minuti_ready
+                ready_per_giorno[data_str]['minuti_erlang'] += agenti_erlang * interval_minutes
+
                 # Inserisci in tabella
                 values = (
+                    giorno_display if proiezione == 'settimana' else '',
                     fascia_display,
                     int(volume),
                     agenti_erlang,
@@ -854,7 +893,7 @@ class ErlangConfigDialog(tk.Toplevel):
                     f"{minuti_ready:.1f}"
                 )
 
-                # Colora riga in base a ready (verde se >0, giallo se =0, rosso se <0)
+                # Colora riga in base a ready
                 if agenti_ready > 0:
                     tag = 'ready_pos'
                 elif agenti_ready == 0:
@@ -865,9 +904,9 @@ class ErlangConfigDialog(tk.Toplevel):
                 self.ready_tree.insert('', 'end', values=values, tags=(tag,))
 
             # Configura colori
-            self.ready_tree.tag_configure('ready_pos', background='#E8F5E9')  # Verde chiaro
-            self.ready_tree.tag_configure('ready_zero', background='#FFF9C4')  # Giallo chiaro
-            self.ready_tree.tag_configure('ready_neg', background='#FFEBEE')  # Rosso chiaro
+            self.ready_tree.tag_configure('ready_pos', background='#E8F5E9')
+            self.ready_tree.tag_configure('ready_zero', background='#FFF9C4')
+            self.ready_tree.tag_configure('ready_neg', background='#FFEBEE')
 
             # === CALCOLO PERCENTUALE READY ===
             ore_ready = total_minuti_ready / 60.0
@@ -879,6 +918,9 @@ class ErlangConfigDialog(tk.Toplevel):
                 ready_pct = 0
 
             # Aggiorna labels summary
+            periodo_label = "Settimanale" if proiezione == 'settimana' else "Giornaliero"
+            self.ready_summary_title.config(text=f"Ready % {periodo_label}:")
+
             self.ready_pct_label.config(
                 text=f"{ready_pct:.1f}%",
                 foreground='#673AB7' if ready_pct >= 10 else '#FF5722'
@@ -889,10 +931,23 @@ class ErlangConfigDialog(tk.Toplevel):
                 foreground='#FF5722'
             )
 
-            messagebox.showinfo("Calcolo Completato",
-                f"Ready calcolato per {len(forecast_data)} fasce orarie.\n\n"
-                f"Ready giornaliero: {ready_pct:.1f}%\n"
-                f"Ore Ready: {ore_ready:.2f} h")
+            # Messaggio riepilogativo
+            n_giorni = len(ready_per_giorno)
+            msg = f"Ready calcolato per {len(all_forecast_data)} fasce orarie su {n_giorni} giorni.\n\n"
+            msg += f"Ready {periodo_label.lower()}: {ready_pct:.1f}%\n"
+            msg += f"Ore Ready: {ore_ready:.2f} h\n\n"
+
+            if proiezione == 'settimana' and n_giorni > 1:
+                msg += "Dettaglio per giorno:\n"
+                for data, stats in sorted(ready_per_giorno.items()):
+                    ore_r = stats['minuti_ready'] / 60.0
+                    ore_e = stats['minuti_erlang'] / 60.0
+                    pct = (ore_r / ore_e * 100) if ore_e > 0 else 0
+                    dt_day = dt.strptime(data, '%Y-%m-%d')
+                    giorno = dt_day.strftime('%a %d/%m')
+                    msg += f"  {giorno}: {pct:.1f}% ({ore_r:.2f} h)\n"
+
+            messagebox.showinfo("Calcolo Completato", msg)
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore calcolo Ready:\n{e}")
