@@ -49,6 +49,45 @@ class TemplatesTab(ttk.Frame):
         ttk.Label(btn_frame, text="Include: Skills, Turni, Giustificativi, Operatori",
                  font=('Arial', 8), foreground='#888').pack(side='left', padx=10)
 
+        # === SEZIONE IMPORT DATI ===
+        import_frame = ttk.LabelFrame(main_container, text="📤 Import Dati", padding=15)
+        import_frame.pack(fill='x', pady=(0, 15))
+
+        ttk.Label(import_frame, text="Carica i dati compilati nei template Excel direttamente nel database",
+                 font=('Arial', 9), foreground='#666').pack(anchor='w', pady=(0, 10))
+
+        # Griglia bottoni import
+        import_grid = ttk.Frame(import_frame)
+        import_grid.pack(fill='x')
+
+        # Bottone Importa Giustificativi
+        giust_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
+        giust_card.grid(row=0, column=0, padx=5, pady=5, sticky='nsew')
+
+        ttk.Label(giust_card, text="📋 Giustificativi",
+                 font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
+        ttk.Label(giust_card, text="Importa codici assenze (Ferie, Malattia, ROL, etc.)",
+                 font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
+        ttk.Button(giust_card, text="📤 Importa Giustificativi",
+                  command=self.importa_giustificativi,
+                  width=25).pack(padx=10, pady=(0, 10))
+
+        # Bottone Importa Anagrafica Operatori
+        op_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
+        op_card.grid(row=0, column=1, padx=5, pady=5, sticky='nsew')
+
+        ttk.Label(op_card, text="👥 Anagrafica Operatori",
+                 font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
+        ttk.Label(op_card, text="Importa operatori con turni, pause, straordinari",
+                 font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
+        ttk.Button(op_card, text="📤 Importa Anagrafica",
+                  command=self.importa_anagrafica_operatori,
+                  width=25).pack(padx=10, pady=(0, 10))
+
+        # Configura grid weights per import
+        import_grid.columnconfigure(0, weight=1)
+        import_grid.columnconfigure(1, weight=1)
+
         # === SEZIONE TEMPLATES SINGOLI ===
         singles_frame = ttk.LabelFrame(main_container, text="📑 Templates Singoli", padding=15)
         singles_frame.pack(fill='both', expand=True)
@@ -341,6 +380,209 @@ class TemplatesTab(ttk.Frame):
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore generazione template:\n{e}")
+
+    def importa_giustificativi(self):
+        """Importa giustificativi da file Excel"""
+        import subprocess
+        import sys
+        import threading
+
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel con Giustificativi",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ],
+            initialdir="."
+        )
+
+        if not file_path:
+            return
+
+        # Conferma import
+        if not messagebox.askyesno(
+            "Conferma Import Giustificativi",
+            f"Importare giustificativi da:\n{file_path}\n\n"
+            "ATTENZIONE:\n"
+            "• Se un codice esiste già, verrà AGGIORNATO\n"
+            "• Nuovi codici verranno AGGIUNTI\n\n"
+            "Il file deve avere un foglio 'Giust' o 'Giustificativi'.\n\n"
+            "Continuare?"
+        ):
+            return
+
+        # Crea finestra progresso
+        progress_window = tk.Toplevel(self)
+        progress_window.title("Import Giustificativi...")
+        progress_window.geometry("600x400")
+        progress_window.transient(self)
+        progress_window.grab_set()
+
+        ttk.Label(progress_window, text="Import Giustificativi in corso...",
+                 font=('Arial', 12, 'bold')).pack(pady=10)
+
+        # Text widget per output
+        output_text = tk.Text(progress_window, height=20, width=70)
+        output_text.pack(padx=10, pady=10, fill='both', expand=True)
+
+        scroll = ttk.Scrollbar(output_text)
+        scroll.pack(side='right', fill='y')
+        output_text.config(yscrollcommand=scroll.set)
+        scroll.config(command=output_text.yview)
+
+        # Bottone chiudi (disabilitato durante import)
+        close_btn = ttk.Button(progress_window, text="Chiudi", state='disabled',
+                              command=progress_window.destroy)
+        close_btn.pack(pady=10)
+
+        def run_import():
+            """Esegue import in thread separato"""
+            try:
+                # Esegui script import
+                script_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                                          'scripts', 'import_giustificativi.py')
+
+                process = subprocess.Popen(
+                    [sys.executable, script_path, '--file', file_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Leggi output in tempo reale
+                for line in process.stdout:
+                    output_text.insert('end', line)
+                    output_text.see('end')
+                    output_text.update()
+
+                process.wait()
+
+                # Risultato finale
+                if process.returncode == 0:
+                    output_text.insert('end', "\n✅ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
+                else:
+                    output_text.insert('end', "\n⚠️ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+
+                output_text.see('end')
+
+                # Abilita bottone chiudi
+                close_btn.config(state='normal')
+
+            except Exception as e:
+                output_text.insert('end', f"\n❌ ERRORE: {str(e)}\n", 'error')
+                output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+                close_btn.config(state='normal')
+
+        # Avvia import in thread
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
+
+    def importa_anagrafica_operatori(self):
+        """Importa anagrafica operatori da file Excel"""
+        import subprocess
+        import sys
+        import threading
+
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel con Anagrafica Operatori",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ],
+            initialdir="."
+        )
+
+        if not file_path:
+            return
+
+        # Conferma import
+        if not messagebox.askyesno(
+            "Conferma Import Anagrafica",
+            f"Importare anagrafica operatori da:\n{file_path}\n\n"
+            "ATTENZIONE:\n"
+            "• Se ID_SAP + Data esistono già, i dati verranno AGGIORNATI\n"
+            "• Nuovi operatori/turni verranno AGGIUNTI\n"
+            "• L'operazione potrebbe richiedere alcuni minuti\n\n"
+            "Il file deve avere un foglio 'Operatori' con le colonne:\n"
+            "ID_SAP, Nome, Cognome, Data_Riferimento, Ora_Inizio_Turno,\n"
+            "Ora_Fine_Turno, Skill, etc.\n\n"
+            "Continuare?"
+        ):
+            return
+
+        # Crea finestra progresso
+        progress_window = tk.Toplevel(self)
+        progress_window.title("Import Anagrafica...")
+        progress_window.geometry("600x400")
+        progress_window.transient(self)
+        progress_window.grab_set()
+
+        ttk.Label(progress_window, text="Import Anagrafica Operatori in corso...",
+                 font=('Arial', 12, 'bold')).pack(pady=10)
+
+        # Text widget per output
+        output_text = tk.Text(progress_window, height=20, width=70)
+        output_text.pack(padx=10, pady=10, fill='both', expand=True)
+
+        scroll = ttk.Scrollbar(output_text)
+        scroll.pack(side='right', fill='y')
+        output_text.config(yscrollcommand=scroll.set)
+        scroll.config(command=output_text.yview)
+
+        # Bottone chiudi (disabilitato durante import)
+        close_btn = ttk.Button(progress_window, text="Chiudi", state='disabled',
+                              command=progress_window.destroy)
+        close_btn.pack(pady=10)
+
+        def run_import():
+            """Esegue import in thread separato"""
+            try:
+                # Esegui script import
+                script_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                                          'scripts', 'import_excel_operatori.py')
+
+                process = subprocess.Popen(
+                    [sys.executable, script_path, '--file', file_path, '--sheet', 'Operatori'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Leggi output in tempo reale
+                for line in process.stdout:
+                    output_text.insert('end', line)
+                    output_text.see('end')
+                    output_text.update()
+
+                process.wait()
+
+                # Risultato finale
+                if process.returncode == 0:
+                    output_text.insert('end', "\n✅ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
+                else:
+                    output_text.insert('end', "\n⚠️ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+
+                output_text.see('end')
+
+                # Abilita bottone chiudi
+                close_btn.config(state='normal')
+
+            except Exception as e:
+                output_text.insert('end', f"\n❌ ERRORE: {str(e)}\n", 'error')
+                output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+                close_btn.config(state='normal')
+
+        # Avvia import in thread
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
 
 
 class DateSelectionDialog(tk.Toplevel):
