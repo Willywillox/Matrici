@@ -131,7 +131,7 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview - colonne dinamiche con giustificativi
         base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
-        base_columns_after = ['FTE Eff.', 'FTE Rich.', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
+        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
 
         # Inserisci colonne giustificativi tra In Strao e FTE Eff.
         columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
@@ -153,6 +153,7 @@ class CapabilityDashboard(ttk.Frame):
             'In Produzione': 100,
             'In Strao': 70,
             'FTE Eff.': 70,
+            'Volumi FC': 90,
             'FTE Rich.': 80,
             'Richiesto': 80,
             'Gest. Chiam.': 90,
@@ -407,6 +408,12 @@ class CapabilityDashboard(ttk.Frame):
                 if fte_eff is None or pd.isna(fte_eff):
                     fte_eff = 0
 
+                # Volumi forecast
+                volumi_fc = row.get('Volumi_Attesi', 0)
+                if volumi_fc is None or pd.isna(volumi_fc):
+                    volumi_fc = 0
+                volumi_fc = int(volumi_fc)
+
                 fte_rich = row.get('FTE_Richiesti', 0)
                 if fte_rich is None or pd.isna(fte_rich):
                     fte_rich = 0
@@ -462,8 +469,9 @@ class CapabilityDashboard(ttk.Frame):
                     values_list.append(int(valore_giust))
 
                 # Aggiungi valori finali
+                # Ordine: FTE Eff., Volumi FC, FTE Rich., Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
                 values_list.extend([
-                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", agenti_richiesti, gestibile_chiamate,
+                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", agenti_richiesti, gestibile_chiamate,
                     f"{capability_pct:.0f}%", f"{delta:+.1f}", f"{copertura:.0f}%", stato
                 ])
 
