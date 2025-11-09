@@ -422,14 +422,53 @@ class ErlangConfigDialog(tk.Toplevel):
                  font=('Arial', 11, 'bold'), foreground='#2196F3').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
         row += 1
 
-        # Available (Occupancy calcolato)
+        # Available (%) - Manuale o da Ready
         ttk.Label(form, text="Available (%):").grid(row=row, column=0, sticky='w', pady=3)
         avail_frame = ttk.Frame(form)
         avail_frame.grid(row=row, column=1, sticky='w', pady=3)
-        self.available_label = ttk.Label(avail_frame, text="--",
+
+        # Radio button per scegliere modalità
+        self.vars['available_mode'] = tk.StringVar(value='erlang')
+        ttk.Radiobutton(avail_frame, text="Erlang C", variable=self.vars['available_mode'],
+                       value='erlang', command=self.on_available_mode_change).pack(side='left', padx=2)
+        ttk.Radiobutton(avail_frame, text="Manuale", variable=self.vars['available_mode'],
+                       value='manuale', command=self.on_available_mode_change).pack(side='left', padx=2)
+        ttk.Radiobutton(avail_frame, text="Da Ready", variable=self.vars['available_mode'],
+                       value='ready', command=self.on_available_mode_change).pack(side='left', padx=2)
+        row += 1
+
+        # Campo valore Available
+        ttk.Label(form, text="").grid(row=row, column=0, sticky='w', pady=3)
+        avail_value_frame = ttk.Frame(form)
+        avail_value_frame.grid(row=row, column=1, sticky='w', pady=3)
+
+        # Entry per inserimento manuale
+        self.vars['available_manuale'] = tk.DoubleVar(value=0.0)
+        self.available_entry = ttk.Entry(avail_value_frame, textvariable=self.vars['available_manuale'],
+                                        width=10, state='disabled')
+        self.available_entry.pack(side='left', padx=2)
+
+        # Label per valore calcolato
+        self.available_label = ttk.Label(avail_value_frame, text="--",
                                         font=('Arial', 11, 'bold'), foreground='#9C27B0')
-        self.available_label.pack(side='left')
-        ttk.Label(avail_frame, text="  (occupancy da Erlang C)",
+        self.available_label.pack(side='left', padx=5)
+
+        self.available_info_label = ttk.Label(avail_value_frame, text="(da Erlang C)",
+                 foreground='#666', font=('Arial', 8))
+        self.available_info_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['available_manuale'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # Occupancy (calcolato da Available)
+        ttk.Label(form, text="Occupancy (%):").grid(row=row, column=0, sticky='w', pady=3)
+        occupancy_frame = ttk.Frame(form)
+        occupancy_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.occupancy_label = ttk.Label(occupancy_frame, text="--",
+                                        font=('Arial', 11, 'bold'), foreground='#673AB7')
+        self.occupancy_label.pack(side='left')
+        ttk.Label(occupancy_frame, text="  (1 - Available)",
                  foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
         row += 1
 
@@ -661,8 +700,12 @@ class ErlangConfigDialog(tk.Toplevel):
         ttk.Button(button_frame, text="❌ Annulla", command=self.destroy,
                   width=20).pack(side='left', padx=10)
 
+        # Variabile per memorizzare ultimo Ready % calcolato
+        self.last_ready_pct = 0.0
+
         # Configura stato iniziale campi
         self.on_canale_change()
+        self.on_available_mode_change()
 
         # Calcola produttività iniziale
         self.calculate_productivity()
@@ -680,6 +723,7 @@ class ErlangConfigDialog(tk.Toplevel):
             interval_minutes = self.vars['interval_minutes'].get()
             volume = self.vars['volume_riferimento'].get()
             tipo_canale = self.vars['tipo_canale'].get()
+            available_mode = self.vars['available_mode'].get()
 
             # Valida valori
             if aht <= 0 or interval_minutes <= 0 or volume <= 0:
@@ -690,55 +734,74 @@ class ErlangConfigDialog(tk.Toplevel):
                 self._reset_calculated_fields()
                 return
 
-            # === CALCOLO BASATO SU TIPO CANALE ===
+            # === DETERMINA AVAILABLE IN BASE ALLA MODALITÀ ===
             calculator = ErlangCalculator()
 
-            if tipo_canale == 'BO':
-                # BO: Nessun Service Level, Available = 0
-                # Agenti calcolati solo su base AHT
-                interval_seconds = interval_minutes * 60
-                agenti = int(volume * aht / interval_seconds) + 1  # +1 per arrotondamento sicurezza
-                available = 0.0  # Nessun tempo di attesa per BO
+            if available_mode == 'manuale':
+                # Usa valore manuale
+                available = self.vars['available_manuale'].get() / 100.0
+                agenti = 0  # Non calcolato in modalità manuale
+                self.available_label.config(text="")
 
-            else:
-                # Voice/Chat: Usa Erlang C
-                if not (0 < sl_target <= 1):
-                    self._reset_calculated_fields()
-                    return
-
-                # Calcola traffic intensity
-                traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
-
-                # Calcola agenti necessari per raggiungere Service Level target
-                agenti = calculator.required_agents(
-                    volume, aht, sl_target, sl_seconds, interval_minutes
+            elif available_mode == 'ready':
+                # Usa valore da Ready
+                available = self.last_ready_pct / 100.0
+                agenti = 0  # Non calcolato in modalità ready
+                self.available_label.config(
+                    text=f"{self.last_ready_pct:.1f}%",
+                    foreground='#673AB7'
                 )
 
-                # Calcola occupancy (Available %)
-                available = calculator.calculate_occupancy(traffic, agenti)
+            else:  # erlang
+                # Calcola con Erlang C
+                if tipo_canale == 'BO':
+                    # BO: Nessun Service Level, Available = 0
+                    interval_seconds = interval_minutes * 60
+                    agenti = int(volume * aht / interval_seconds) + 1
+                    available = 0.0
+                else:
+                    # Voice/Chat: Usa Erlang C
+                    if not (0 < sl_target <= 1):
+                        self._reset_calculated_fields()
+                        return
+
+                    traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
+                    agenti = calculator.required_agents(
+                        volume, aht, sl_target, sl_seconds, interval_minutes
+                    )
+                    available = calculator.calculate_occupancy(traffic, agenti)
+
+                self.available_label.config(
+                    text=f"{available * 100:.1f}%",
+                    foreground='#9C27B0'
+                )
+
+            # === CALCOLO OCCUPANCY ===
+            occupancy = 1 - available
+            self.occupancy_label.config(
+                text=f"{occupancy * 100:.1f}%",
+                foreground='#673AB7'
+            )
 
             # === CALCOLO MINUTO UTILE ===
-            # Formula: 60 × (1 - shrinkage) × (1 - available)
-            minuto_utile = 60 * (1 - shrinkage) * (1 - available)
+            # Formula: 60 × (1 - shrinkage) × occupancy
+            minuto_utile = 60 * (1 - shrinkage) * occupancy
 
             # === CALCOLO PRODUTTIVITÀ ===
             # Formula: Minuto Utile × intervallo / AHT
-            # Nota: intervallo è in minuti, AHT in secondi
             if aht > 0:
                 produttivita = (minuto_utile * interval_minutes) / aht
             else:
                 produttivita = 0
 
             # === AGGIORNA LABELS ===
-            self.available_label.config(
-                text=f"{available * 100:.1f}%",
-                foreground='#9C27B0'
-            )
-
-            self.agenti_label.config(
-                text=f"{agenti} agenti",
-                foreground='#FF5722'
-            )
+            if available_mode == 'erlang' and agenti > 0:
+                self.agenti_label.config(
+                    text=f"{agenti} agenti",
+                    foreground='#FF5722'
+                )
+            else:
+                self.agenti_label.config(text="--", foreground='#999')
 
             self.minuto_utile_label.config(
                 text=f"{minuto_utile:.2f} sec",
@@ -761,10 +824,39 @@ class ErlangConfigDialog(tk.Toplevel):
     def _reset_calculated_fields(self):
         """Reset dei campi calcolati"""
         self.available_label.config(text="--", foreground='#9C27B0')
+        self.occupancy_label.config(text="--", foreground='#673AB7')
         self.agenti_label.config(text="--", foreground='#FF5722')
         self.minuto_utile_label.config(text="--", foreground='#FF9800')
         self.productivity_label.config(text="--", foreground='#4CAF50')
         self.productivity_formula_label.config(text="Formula: Minuto Utile × Intervallo / AHT")
+
+    def on_available_mode_change(self):
+        """Gestisce il cambio di modalità Available"""
+        mode = self.vars['available_mode'].get()
+
+        if mode == 'manuale':
+            # Modalità manuale: abilita entry, nascondi label calcolato
+            self.available_entry.config(state='normal')
+            self.available_label.config(text="")
+            self.available_info_label.config(text="(inserisci valore %)")
+        elif mode == 'ready':
+            # Modalità da Ready: disabilita entry, mostra valore da Ready
+            self.available_entry.config(state='disabled')
+            if self.last_ready_pct > 0:
+                self.available_label.config(
+                    text=f"{self.last_ready_pct:.1f}%",
+                    foreground='#673AB7'
+                )
+            else:
+                self.available_label.config(text="(calcola Ready prima)", foreground='#FF9800')
+            self.available_info_label.config(text="(da calcolo Ready)")
+        else:  # erlang
+            # Modalità Erlang C: disabilita entry, mostra calcolo
+            self.available_entry.config(state='disabled')
+            self.available_info_label.config(text="(da Erlang C)")
+
+        # Ricalcola produttività con nuova modalità
+        self.calculate_productivity()
 
     def load_forecast_ready(self):
         """Carica forecast e calcola Ready per la data selezionata (giorno o settimana)"""
@@ -920,6 +1012,9 @@ class ErlangConfigDialog(tk.Toplevel):
             else:
                 ready_pct = 0
 
+            # Salva Ready % per uso in Available
+            self.last_ready_pct = ready_pct
+
             # Aggiorna labels summary
             periodo_label = "Settimanale" if proiezione == 'settimana' else "Giornaliero"
             self.ready_summary_title.config(text=f"Ready % {periodo_label}:")
@@ -933,6 +1028,18 @@ class ErlangConfigDialog(tk.Toplevel):
                 text=f"{ore_ready:.2f} h (su {ore_erlang:.2f} h Erlang)",
                 foreground='#FF5722'
             )
+
+            # Forza aggiornamento UI
+            self.ready_tree.update_idletasks()
+
+            # Se la modalità Available è "ready", aggiorna il valore
+            if self.vars['available_mode'].get() == 'ready':
+                self.available_label.config(
+                    text=f"{ready_pct:.1f}%",
+                    foreground='#673AB7'
+                )
+                # Ricalcola produttività con nuovo Ready %
+                self.calculate_productivity()
 
             # Messaggio riepilogativo
             n_giorni = len(ready_per_giorno)
