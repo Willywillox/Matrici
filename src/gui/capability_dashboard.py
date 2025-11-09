@@ -165,10 +165,32 @@ class CapabilityDashboard(ttk.Frame):
             value_label.pack()
             self.summary_labels[key] = value_label
 
+        # Sezione Capability
+        capability_section = ttk.LabelFrame(summary_grid, text="Capability", padding=5)
+        capability_section.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(3, weight=1)
+
+        capability_indicators = [
+            ('capability_forecast', 'Forecast', '#9C27B0'),
+            ('capability_effettiva', 'Effettiva', '#4CAF50'),
+            ('delta_capability', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(capability_indicators):
+            card = ttk.Frame(capability_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            capability_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
         # Sezione Copertura
         coverage_section = ttk.LabelFrame(summary_grid, text="Performance", padding=5)
-        coverage_section.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(3, weight=1)
+        coverage_section.grid(row=0, column=4, padx=5, pady=5, sticky='ew')
+        summary_grid.columnconfigure(4, weight=1)
 
         coverage_card = ttk.Frame(coverage_section)
         coverage_card.pack(padx=5, pady=2)
@@ -614,20 +636,14 @@ class CapabilityDashboard(ttk.Frame):
             # Mostra valori di default se non ci sono dati
             for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
                        'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
-                       'delta_ore', 'coverage']:
+                       'delta_ore', 'capability_forecast', 'capability_effettiva',
+                       'delta_capability', 'coverage']:
                 if key in self.summary_labels:
                     self.summary_labels[key].config(text="--")
             return
 
         try:
             # === SEZIONE FTE ===
-            # Somma FTE effettivi (Disponibili)
-            if 'FTE_Effettivi' in df.columns:
-                total_fte = df['FTE_Effettivi'].sum()
-            else:
-                total_fte = 0
-
-            # Calcola FTE richiesti usando formula: Ore totali / Giorni lavorativi / 8
             # Determina intervallo in minuti per calcolare ore per fascia
             if not df.empty and 'Fascia_Oraria' in df.columns:
                 sorted_fasce = sorted(df['Fascia_Oraria'].unique())
@@ -639,20 +655,28 @@ class CapabilityDashboard(ttk.Frame):
             else:
                 ore_per_fascia = 0.25  # Default 15 minuti
 
-            # Calcola ore totali richieste
-            if 'Agenti_Richiesti' in df.columns:
-                ore_totali_richieste = df['Agenti_Richiesti'].sum() * ore_per_fascia
-            else:
-                ore_totali_richieste = 0
-
-            # Calcola giorni lavorativi unici nel dataframe
+            # Calcola giorni lavorativi unici nel dataframe (escludendo weekend)
             if 'Fascia_Oraria' in df.columns and not df.empty:
-                giorni_lavorativi = df['Fascia_Oraria'].dt.date.nunique()
+                # Ottieni tutte le date univoche
+                date_uniche = df['Fascia_Oraria'].dt.date.unique()
+                # Filtra solo giorni lavorativi (lunedì=0 a venerdì=4)
+                giorni_lavorativi = sum(1 for d in date_uniche
+                                       if pd.Timestamp(d).dayofweek < 5)
+                if giorni_lavorativi == 0:
+                    giorni_lavorativi = 1  # Fallback
             else:
                 giorni_lavorativi = 1
 
-            # FTE Richiesti = Ore totali / Giorni lavorativi / 8
-            if giorni_lavorativi > 0:
+            # Calcola FTE Disponibili usando formula: Ore totali disponibili / Giorni lavorativi / 8
+            if 'In_Produzione' in df.columns:
+                ore_totali_disponibili = df['In_Produzione'].sum() * ore_per_fascia
+                total_fte = ore_totali_disponibili / giorni_lavorativi / 8
+            else:
+                total_fte = 0
+
+            # Calcola FTE richiesti usando formula: Ore totali / Giorni lavorativi / 8
+            if 'Agenti_Richiesti' in df.columns:
+                ore_totali_richieste = df['Agenti_Richiesti'].sum() * ore_per_fascia
                 required_fte = ore_totali_richieste / giorni_lavorativi / 8
             else:
                 required_fte = 0
@@ -705,6 +729,23 @@ class CapabilityDashboard(ttk.Frame):
             # Delta Ore
             delta_ore = ore_produzione - ore_richieste
 
+            # === CAPABILITY ===
+            # Capability Forecast: target 100%
+            capability_forecast = 100.0
+
+            # Capability Effettiva: media delle capability %
+            if 'Capability_%' in df.columns:
+                capability_valide = df['Capability_%'].dropna()
+                if len(capability_valide) > 0:
+                    capability_effettiva = capability_valide.mean()
+                else:
+                    capability_effettiva = 0
+            else:
+                capability_effettiva = 0
+
+            # Delta Capability
+            delta_capability = capability_effettiva - capability_forecast
+
             # === COPERTURA ===
             # Calcola copertura media
             if 'Copertura_%' in df.columns:
@@ -742,6 +783,14 @@ class CapabilityDashboard(ttk.Frame):
             delta_ore_color = '#4CAF50' if delta_ore >= 0 else '#F44336'
             self.summary_labels['delta_ore'].config(text=delta_ore_text, foreground=delta_ore_color)
 
+            # Capability Section
+            self.summary_labels['capability_forecast'].config(text=f"{capability_forecast:.0f}%")
+            self.summary_labels['capability_effettiva'].config(text=f"{capability_effettiva:.1f}%")
+
+            delta_capability_text = f"{delta_capability:+.1f}%"
+            delta_capability_color = '#4CAF50' if delta_capability >= 0 else '#F44336'
+            self.summary_labels['delta_capability'].config(text=delta_capability_text, foreground=delta_capability_color)
+
             # Coverage
             coverage_text = f"{avg_coverage:.1f}%"
             if avg_coverage >= 95:
@@ -759,7 +808,8 @@ class CapabilityDashboard(ttk.Frame):
             # Valori di fallback
             for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
                        'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
-                       'delta_ore', 'coverage']:
+                       'delta_ore', 'capability_forecast', 'capability_effettiva',
+                       'delta_capability', 'coverage']:
                 if key in self.summary_labels:
                     self.summary_labels[key].config(text="--")
 
