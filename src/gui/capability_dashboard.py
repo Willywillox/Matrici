@@ -192,7 +192,7 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview - colonne dinamiche con giustificativi
         base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
-        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
+        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Prod/h', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
 
         # Inserisci colonne giustificativi tra In Strao e FTE Eff.
         columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
@@ -216,6 +216,7 @@ class CapabilityDashboard(ttk.Frame):
             'FTE Eff.': 70,
             'Volumi FC': 90,
             'FTE Rich.': 80,
+            'Prod/h': 70,
             'Richiesto': 80,
             'Gest. Chiam.': 90,
             'Capability %': 90,
@@ -479,6 +480,11 @@ class CapabilityDashboard(ttk.Frame):
                 if fte_rich is None or pd.isna(fte_rich):
                     fte_rich = 0
 
+                # Produttività oraria
+                prod_oraria = row.get('Produttivita_Oraria', 0)
+                if prod_oraria is None or pd.isna(prod_oraria):
+                    prod_oraria = 0
+
                 # Agenti richiesti (numero teste)
                 agenti_richiesti = row.get('Agenti_Richiesti', 0)
                 if agenti_richiesti is None or pd.isna(agenti_richiesti):
@@ -530,9 +536,10 @@ class CapabilityDashboard(ttk.Frame):
                     values_list.append(int(valore_giust))
 
                 # Aggiungi valori finali
-                # Ordine: FTE Eff., Volumi FC, FTE Rich., Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
+                # Ordine: FTE Eff., Volumi FC, FTE Rich., Prod/h, Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
                 values_list.extend([
-                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", agenti_richiesti, gestibile_chiamate,
+                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", f"{prod_oraria:.1f}",
+                    agenti_richiesti, gestibile_chiamate,
                     f"{capability_pct:.0f}%", f"{delta:+.1f}", f"{copertura:.0f}%", stato
                 ])
 

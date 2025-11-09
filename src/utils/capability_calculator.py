@@ -369,6 +369,11 @@ class CapabilityCalculator:
             axis=1
         )
 
+        # Aggiungi produttività oraria per skill (per visibilità)
+        df_merged['Produttivita_Oraria'] = df_merged['Skill'].apply(
+            lambda skill: self._calculate_produttivita(skill)
+        )
+
         return df_merged
 
     def _calculate_required_fte_erlang(self, skill: str, volumi: float, fallback_fte: float) -> float:
@@ -448,15 +453,20 @@ class CapabilityCalculator:
 
     def _calculate_produttivita(self, skill: str) -> float:
         """
-        Calcola la produttività (chiamate/ora) per uno skill usando Erlang C
+        Calcola la produttività (chiamate/ora) per uno skill usando configurazione Erlang
 
-        Formula: Produttività = 3600 × (1 - shrinkage) × (1 - occupancy) / AHT_secondi
+        Formula: Produttività = (3600 / AHT_secondi) × (1 - shrinkage) × occupancy_target
+
+        Spiegazione:
+        - 3600 / AHT = numero massimo di chiamate/ora teoriche
+        - (1 - shrinkage) = riduzione per pause, meeting, formazione, etc.
+        - occupancy_target = percentuale di tempo effettivamente speso in chiamata
 
         Args:
             skill: Nome dello skill
 
         Returns:
-            Produttività in chiamate/ora
+            Produttività in chiamate/ora per operatore
         """
         if skill in self.erlang_configs:
             config = self.erlang_configs[skill]
@@ -465,14 +475,16 @@ class CapabilityCalculator:
             occupancy_target = config.get('occupancy_target', 0.85)
 
             if aht_seconds > 0:
-                produttivita = 3600.0 * (1 - shrinkage) * (1 - occupancy_target) / aht_seconds
+                # Produttività = (chiamate massime/ora) × (1 - shrinkage) × occupancy
+                produttivita = (3600.0 / aht_seconds) * (1 - shrinkage) * occupancy_target
             else:
-                produttivita = 20.0 * (1 - shrinkage) * (1 - occupancy_target)
+                # Fallback con 20 chiamate/ora base
+                produttivita = 20.0 * (1 - shrinkage) * occupancy_target
 
             return produttivita
         else:
             # Default: 20 chiamate/ora con 30% shrinkage e 85% occupancy
-            return 20.0 * 0.70 * 0.15
+            return 20.0 * 0.70 * 0.85
 
     def _calculate_gestibile_chiamate(self, skill: str, operatori_produzione: int, produttivita_target: float) -> int:
         """
