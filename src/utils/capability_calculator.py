@@ -229,15 +229,41 @@ class CapabilityCalculator:
         # Crea DataFrame dai forecast
         forecast_records = []
         for f in self.forecast:
-            if isinstance(f.get('Data_Riferimento'), datetime):
-                if f['Data_Riferimento'].date() == data.date():
-                    forecast_records.append({
-                        'Fascia_Oraria': f['Fascia_Oraria'],
-                        'Skill': f['Skill'],
-                        'Volumi_Attesi': f.get('Volumi_Attesi', 0),
-                        'Produttivita_Target': f.get('Produttivita_Target', 1),
-                        'FTE_Richiesti': f.get('FTE_Richiesti', 0)
-                    })
+            # Parse data_riferimento
+            data_forecast = f.get('Data_Riferimento')
+            if isinstance(data_forecast, str):
+                try:
+                    data_forecast = datetime.strptime(data_forecast, '%Y-%m-%d')
+                except:
+                    continue
+
+            # Verifica che sia la data corretta
+            if not isinstance(data_forecast, datetime):
+                continue
+            if data_forecast.date() != data.date():
+                continue
+
+            # Parse fascia_oraria - converte stringa "HH:MM" in datetime per il merge
+            fascia_str = f['Fascia_Oraria']
+            if isinstance(fascia_str, str):
+                # Crea datetime combinando data + ora
+                try:
+                    time_parts = fascia_str.split(':')
+                    hour = int(time_parts[0])
+                    minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                    fascia_datetime = datetime.combine(data.date(), datetime.min.time().replace(hour=hour, minute=minute))
+                except:
+                    continue
+            else:
+                fascia_datetime = fascia_str
+
+            forecast_records.append({
+                'Fascia_Oraria': fascia_datetime,
+                'Skill': f['Skill'],
+                'Volumi_Attesi': f.get('Volumi_Attesi', 0),
+                'Produttivita_Target': f.get('Produttivita_Target', 1),
+                'FTE_Richiesti': f.get('FTE_Richiesti', 0)
+            })
 
         if not forecast_records:
             # Aggiungi colonne vuote
