@@ -56,13 +56,39 @@ class TemplatesTab(ttk.Frame):
         ttk.Label(import_frame, text="Carica i dati compilati nei template Excel direttamente nel database",
                  font=('Arial', 9), foreground='#666').pack(anchor='w', pady=(0, 10))
 
-        # Griglia bottoni import
+        # Griglia bottoni import (2x2)
         import_grid = ttk.Frame(import_frame)
         import_grid.pack(fill='x')
 
+        # RIGA 1 - Skills e Turni
+        # Bottone Importa Skills
+        skills_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
+        skills_card.grid(row=0, column=0, padx=5, pady=5, sticky='nsew')
+
+        ttk.Label(skills_card, text="🎯 Skills",
+                 font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
+        ttk.Label(skills_card, text="Importa configurazione skill/code del contact center",
+                 font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
+        ttk.Button(skills_card, text="📤 Importa Skills",
+                  command=self.importa_skills,
+                  width=25).pack(padx=10, pady=(0, 10))
+
+        # Bottone Importa Turni
+        turni_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
+        turni_card.grid(row=0, column=1, padx=5, pady=5, sticky='nsew')
+
+        ttk.Label(turni_card, text="🕐 Turni",
+                 font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
+        ttk.Label(turni_card, text="Importa turni e orari di lavoro",
+                 font=('Arial', 8), foreground='#666', wraplength=200).pack(anchor='w', padx=10, pady=(0, 10))
+        ttk.Button(turni_card, text="📤 Importa Turni",
+                  command=self.importa_turni,
+                  width=25).pack(padx=10, pady=(0, 10))
+
+        # RIGA 2 - Giustificativi e Anagrafica
         # Bottone Importa Giustificativi
         giust_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
-        giust_card.grid(row=0, column=0, padx=5, pady=5, sticky='nsew')
+        giust_card.grid(row=1, column=0, padx=5, pady=5, sticky='nsew')
 
         ttk.Label(giust_card, text="📋 Giustificativi",
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
@@ -74,7 +100,7 @@ class TemplatesTab(ttk.Frame):
 
         # Bottone Importa Anagrafica Operatori
         op_card = ttk.Frame(import_grid, relief='solid', borderwidth=1)
-        op_card.grid(row=0, column=1, padx=5, pady=5, sticky='nsew')
+        op_card.grid(row=1, column=1, padx=5, pady=5, sticky='nsew')
 
         ttk.Label(op_card, text="👥 Anagrafica Operatori",
                  font=('Arial', 10, 'bold')).pack(anchor='w', padx=10, pady=(10, 5))
@@ -548,6 +574,208 @@ class TemplatesTab(ttk.Frame):
 
                 process = subprocess.Popen(
                     [sys.executable, script_path, '--file', file_path, '--sheet', 'Operatori'],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Leggi output in tempo reale
+                for line in process.stdout:
+                    output_text.insert('end', line)
+                    output_text.see('end')
+                    output_text.update()
+
+                process.wait()
+
+                # Risultato finale
+                if process.returncode == 0:
+                    output_text.insert('end', "\n✅ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
+                else:
+                    output_text.insert('end', "\n⚠️ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+
+                output_text.see('end')
+
+                # Abilita bottone chiudi
+                close_btn.config(state='normal')
+
+            except Exception as e:
+                output_text.insert('end', f"\n❌ ERRORE: {str(e)}\n", 'error')
+                output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+                close_btn.config(state='normal')
+
+        # Avvia import in thread
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
+
+    def importa_skills(self):
+        """Importa skills da file Excel"""
+        import subprocess
+        import sys
+        import threading
+
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel con Skills",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ],
+            initialdir="."
+        )
+
+        if not file_path:
+            return
+
+        # Conferma import
+        if not messagebox.askyesno(
+            "Conferma Import Skills",
+            f"Importare skills da:\n{file_path}\n\n"
+            "ATTENZIONE:\n"
+            "• Se un codice skill esiste già, verrà AGGIORNATO\n"
+            "• Nuovi codici verranno AGGIUNTI\n\n"
+            "Il file deve avere un foglio 'Skills' con colonne:\n"
+            "Codice_Skill, Descrizione, Produttivita_Default\n\n"
+            "Continuare?"
+        ):
+            return
+
+        # Crea finestra progresso
+        progress_window = tk.Toplevel(self)
+        progress_window.title("Import Skills...")
+        progress_window.geometry("600x400")
+        progress_window.transient(self)
+        progress_window.grab_set()
+
+        ttk.Label(progress_window, text="Import Skills in corso...",
+                 font=('Arial', 12, 'bold')).pack(pady=10)
+
+        # Text widget per output
+        output_text = tk.Text(progress_window, height=20, width=70)
+        output_text.pack(padx=10, pady=10, fill='both', expand=True)
+
+        scroll = ttk.Scrollbar(output_text)
+        scroll.pack(side='right', fill='y')
+        output_text.config(yscrollcommand=scroll.set)
+        scroll.config(command=output_text.yview)
+
+        # Bottone chiudi (disabilitato durante import)
+        close_btn = ttk.Button(progress_window, text="Chiudi", state='disabled',
+                              command=progress_window.destroy)
+        close_btn.pack(pady=10)
+
+        def run_import():
+            """Esegue import in thread separato"""
+            try:
+                # Esegui script import
+                script_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                                          'scripts', 'import_skills.py')
+
+                process = subprocess.Popen(
+                    [sys.executable, script_path, '--file', file_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1
+                )
+
+                # Leggi output in tempo reale
+                for line in process.stdout:
+                    output_text.insert('end', line)
+                    output_text.see('end')
+                    output_text.update()
+
+                process.wait()
+
+                # Risultato finale
+                if process.returncode == 0:
+                    output_text.insert('end', "\n✅ IMPORT COMPLETATO CON SUCCESSO!\n", 'success')
+                    output_text.tag_config('success', foreground='green', font=('Arial', 10, 'bold'))
+                else:
+                    output_text.insert('end', "\n⚠️ Import completato con errori. Verifica sopra.\n", 'error')
+                    output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+
+                output_text.see('end')
+
+                # Abilita bottone chiudi
+                close_btn.config(state='normal')
+
+            except Exception as e:
+                output_text.insert('end', f"\n❌ ERRORE: {str(e)}\n", 'error')
+                output_text.tag_config('error', foreground='red', font=('Arial', 10, 'bold'))
+                close_btn.config(state='normal')
+
+        # Avvia import in thread
+        thread = threading.Thread(target=run_import, daemon=True)
+        thread.start()
+
+    def importa_turni(self):
+        """Importa turni da file Excel"""
+        import subprocess
+        import sys
+        import threading
+
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel con Turni",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ],
+            initialdir="."
+        )
+
+        if not file_path:
+            return
+
+        # Conferma import
+        if not messagebox.askyesno(
+            "Conferma Import Turni",
+            f"Importare turni da:\n{file_path}\n\n"
+            "ATTENZIONE:\n"
+            "• Se un ID_Turno esiste già, verrà AGGIORNATO\n"
+            "• Nuovi turni verranno AGGIUNTI\n\n"
+            "Il file deve avere un foglio 'Turni' con colonne:\n"
+            "ID_Turno, Ora_Inizio, Ora_Fine, Descrizione (opzionale)\n\n"
+            "Continuare?"
+        ):
+            return
+
+        # Crea finestra progresso
+        progress_window = tk.Toplevel(self)
+        progress_window.title("Import Turni...")
+        progress_window.geometry("600x400")
+        progress_window.transient(self)
+        progress_window.grab_set()
+
+        ttk.Label(progress_window, text="Import Turni in corso...",
+                 font=('Arial', 12, 'bold')).pack(pady=10)
+
+        # Text widget per output
+        output_text = tk.Text(progress_window, height=20, width=70)
+        output_text.pack(padx=10, pady=10, fill='both', expand=True)
+
+        scroll = ttk.Scrollbar(output_text)
+        scroll.pack(side='right', fill='y')
+        output_text.config(yscrollcommand=scroll.set)
+        scroll.config(command=output_text.yview)
+
+        # Bottone chiudi (disabilitato durante import)
+        close_btn = ttk.Button(progress_window, text="Chiudi", state='disabled',
+                              command=progress_window.destroy)
+        close_btn.pack(pady=10)
+
+        def run_import():
+            """Esegue import in thread separato"""
+            try:
+                # Esegui script import
+                script_path = os.path.join(os.path.dirname(__file__), '..', '..',
+                                          'scripts', 'import_excel_turni.py')
+
+                process = subprocess.Popen(
+                    [sys.executable, script_path, file_path],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.STDOUT,
                     text=True,
