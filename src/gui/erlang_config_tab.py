@@ -476,6 +476,68 @@ class ErlangConfigDialog(tk.Toplevel):
         ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
         row += 1
 
+        # === SEZIONE CALCOLO READY ===
+        ttk.Label(form, text="📋 Calcolo Ready (da Forecast):",
+                 font=('Arial', 11, 'bold'), foreground='#673AB7').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
+        row += 1
+
+        # Seleziona Data Forecast
+        ttk.Label(form, text="Data Forecast:").grid(row=row, column=0, sticky='w', pady=5)
+        data_frame = ttk.Frame(form)
+        data_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        from tkcalendar import DateEntry
+        from datetime import datetime as dt
+        self.vars['data_forecast'] = tk.StringVar(value=dt.now().strftime('%Y-%m-%d'))
+        self.data_forecast_entry = DateEntry(data_frame, textvariable=self.vars['data_forecast'],
+                                             width=12, date_pattern='yyyy-mm-dd')
+        self.data_forecast_entry.pack(side='left', padx=5)
+
+        ttk.Button(data_frame, text="Carica Forecast",
+                  command=self.load_forecast_ready).pack(side='left', padx=5)
+        row += 1
+
+        # Tabella Ready
+        ready_table_frame = ttk.LabelFrame(form, text="Dettaglio Ready per Fascia", padding=5)
+        ready_table_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=5)
+
+        # Scrollbar per tabella
+        ready_scroll = ttk.Scrollbar(ready_table_frame, orient='vertical')
+        ready_scroll.pack(side='right', fill='y')
+
+        # Treeview per ready
+        ready_cols = ('Fascia', 'Volume', 'Ag.Erlang', 'Ag.Teorici', 'Ag.Ready', 'Min.Ready')
+        self.ready_tree = ttk.Treeview(ready_table_frame, columns=ready_cols, show='headings',
+                                       yscrollcommand=ready_scroll.set, height=8)
+        ready_scroll.config(command=self.ready_tree.yview)
+
+        for col in ready_cols:
+            self.ready_tree.heading(col, text=col)
+            self.ready_tree.column(col, width=70, anchor='center')
+
+        self.ready_tree.pack(fill='both', expand=True)
+        row += 1
+
+        # Ready Summary
+        ready_summary_frame = ttk.Frame(form)
+        ready_summary_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=5)
+
+        ttk.Label(ready_summary_frame, text="Ready % Giornaliero:",
+                 font=('Arial', 10, 'bold')).pack(side='left', padx=5)
+        self.ready_pct_label = ttk.Label(ready_summary_frame, text="--",
+                                        font=('Arial', 12, 'bold'), foreground='#673AB7')
+        self.ready_pct_label.pack(side='left', padx=5)
+
+        ttk.Label(ready_summary_frame, text="Ore Ready:",
+                 font=('Arial', 10)).pack(side='left', padx=(20, 5))
+        self.ore_ready_label = ttk.Label(ready_summary_frame, text="--",
+                                        font=('Arial', 10, 'bold'), foreground='#FF5722')
+        self.ore_ready_label.pack(side='left', padx=5)
+        row += 1
+
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
+        row += 1
+
         # === SEZIONE SERVICE LEVEL (Voice/Email) ===
         ttk.Label(form, text="📈 Service Level (per Voice/Email)",
                  font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(15, 5))
@@ -683,6 +745,159 @@ class ErlangConfigDialog(tk.Toplevel):
         self.minuto_utile_label.config(text="--", foreground='#FF9800')
         self.productivity_label.config(text="--", foreground='#4CAF50')
         self.productivity_formula_label.config(text="Formula: Minuto Utile × Intervallo / AHT")
+
+    def load_forecast_ready(self):
+        """Carica forecast e calcola Ready per la data selezionata"""
+        # Pulisci tabella ready
+        for item in self.ready_tree.get_children():
+            self.ready_tree.delete(item)
+
+        # Reset labels
+        self.ready_pct_label.config(text="--")
+        self.ore_ready_label.config(text="--")
+
+        try:
+            # Ottieni parametri correnti
+            skill = self.vars['skill'].get().strip()
+            if not skill:
+                messagebox.showwarning("Attenzione", "Seleziona prima uno Skill")
+                return
+
+            data_forecast = self.vars['data_forecast'].get()
+            aht = self.vars['aht_seconds'].get()
+            shrinkage = self.vars['shrinkage'].get() / 100.0
+            sl_target = self.vars['service_level_target'].get() / 100.0
+            sl_seconds = self.vars['service_level_seconds'].get()
+            interval_minutes = self.vars['interval_minutes'].get()
+            tipo_canale = self.vars['tipo_canale'].get()
+
+            # Valida parametri
+            if aht <= 0 or interval_minutes <= 0:
+                messagebox.showerror("Errore", "AHT e Intervallo devono essere maggiori di 0")
+                return
+
+            # Carica forecast dal database
+            from datetime import datetime as dt
+            self.db_manager.connect()
+
+            # Query forecast per data e skill
+            query = """
+                SELECT Fascia_Oraria, Volume
+                FROM Forecast
+                WHERE date(Fascia_Oraria) = date(?)
+                  AND Skill = ?
+                ORDER BY Fascia_Oraria
+            """
+
+            forecast_data = self.db_manager.execute_query(query, (data_forecast, skill))
+            self.db_manager.close()
+
+            if not forecast_data or len(forecast_data) == 0:
+                messagebox.showinfo("Info",
+                    f"Nessun dato forecast trovato per skill '{skill}' in data {data_forecast}")
+                return
+
+            # === CALCOLO READY ===
+            from utils.erlang_calculator import ErlangCalculator
+            calculator = ErlangCalculator()
+
+            total_minuti_ready = 0.0
+            total_minuti_erlang = 0.0
+
+            for fascia_str, volume in forecast_data:
+                if volume is None or volume <= 0:
+                    continue
+
+                # Converti fascia a stringa leggibile
+                try:
+                    if isinstance(fascia_str, str):
+                        fascia_dt = dt.strptime(fascia_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia_dt = fascia_str
+                    fascia_display = fascia_dt.strftime('%H:%M')
+                except:
+                    fascia_display = str(fascia_str)[:5]  # Primi 5 caratteri
+
+                # === CALCOLO AGENTI ERLANG ===
+                if tipo_canale == 'BO':
+                    # BO: calcolo semplice
+                    interval_seconds = interval_minutes * 60
+                    agenti_erlang = int(volume * aht / interval_seconds) + 1
+                else:
+                    # Voice/Chat: usa Erlang C
+                    agenti_erlang = calculator.required_agents(
+                        volume, aht, sl_target, sl_seconds, interval_minutes
+                    )
+
+                # === CALCOLO AGENTI TEORICI ===
+                # Formula: Volume / (Interval_seconds / AHT)
+                # Equivalente a: Volume * AHT / Interval_seconds
+                interval_seconds = interval_minutes * 60
+                agenti_teorici_exact = volume * aht / interval_seconds
+                agenti_teorici = int(agenti_teorici_exact)
+
+                # === CALCOLO READY ===
+                agenti_ready = agenti_erlang - agenti_teorici
+                minuti_ready = agenti_ready * interval_minutes
+
+                # Accumula totali
+                total_minuti_ready += minuti_ready
+                total_minuti_erlang += agenti_erlang * interval_minutes
+
+                # Inserisci in tabella
+                values = (
+                    fascia_display,
+                    int(volume),
+                    agenti_erlang,
+                    agenti_teorici,
+                    agenti_ready,
+                    f"{minuti_ready:.1f}"
+                )
+
+                # Colora riga in base a ready (verde se >0, giallo se =0, rosso se <0)
+                if agenti_ready > 0:
+                    tag = 'ready_pos'
+                elif agenti_ready == 0:
+                    tag = 'ready_zero'
+                else:
+                    tag = 'ready_neg'
+
+                self.ready_tree.insert('', 'end', values=values, tags=(tag,))
+
+            # Configura colori
+            self.ready_tree.tag_configure('ready_pos', background='#E8F5E9')  # Verde chiaro
+            self.ready_tree.tag_configure('ready_zero', background='#FFF9C4')  # Giallo chiaro
+            self.ready_tree.tag_configure('ready_neg', background='#FFEBEE')  # Rosso chiaro
+
+            # === CALCOLO PERCENTUALE READY ===
+            ore_ready = total_minuti_ready / 60.0
+            ore_erlang = total_minuti_erlang / 60.0
+
+            if ore_erlang > 0:
+                ready_pct = (ore_ready / ore_erlang) * 100
+            else:
+                ready_pct = 0
+
+            # Aggiorna labels summary
+            self.ready_pct_label.config(
+                text=f"{ready_pct:.1f}%",
+                foreground='#673AB7' if ready_pct >= 10 else '#FF5722'
+            )
+
+            self.ore_ready_label.config(
+                text=f"{ore_ready:.2f} h (su {ore_erlang:.2f} h Erlang)",
+                foreground='#FF5722'
+            )
+
+            messagebox.showinfo("Calcolo Completato",
+                f"Ready calcolato per {len(forecast_data)} fasce orarie.\n\n"
+                f"Ready giornaliero: {ready_pct:.1f}%\n"
+                f"Ore Ready: {ore_ready:.2f} h")
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore calcolo Ready:\n{e}")
+            import traceback
+            traceback.print_exc()
 
     def on_canale_change(self):
         """Gestisce cambio tipo canale"""
