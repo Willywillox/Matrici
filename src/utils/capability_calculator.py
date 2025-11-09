@@ -569,20 +569,38 @@ class CapabilityCalculator:
         Returns:
             DataFrame con: Skill, Ore_Totali, Ore_Produzione, Ore_Pausa, Ore_Straordinario
         """
+        print(f"[DEBUG] Inizio calcolo rendiconto per servizio: {len(self.operatori)} operatori")
+        print(f"[DEBUG] Periodo: {data_inizio.strftime('%Y-%m-%d')} - {data_fine.strftime('%Y-%m-%d')}")
+        print(f"[DEBUG] Tipologie giustificativi: {self.tipologie_giustificativi}")
+
         # Genera tutte le fasce nel periodo
         current_date = data_inizio
         all_results = []
 
         while current_date <= data_fine:
             df_day = self.calcola_capability_per_fascia(current_date, intervallo_minuti)
+            if not df_day.empty:
+                print(f"[DEBUG] Data {current_date.strftime('%Y-%m-%d')}: {len(df_day)} righe, colonne: {df_day.columns.tolist()[:5]}...")
+            else:
+                print(f"[DEBUG] Data {current_date.strftime('%Y-%m-%d')}: DataFrame vuoto")
             df_day['Data'] = current_date.date()
             all_results.append(df_day)
             current_date += timedelta(days=1)
 
         if not all_results:
+            print("[DEBUG] Nessun risultato generato")
             return pd.DataFrame()
 
         df_all = pd.concat(all_results, ignore_index=True)
+        print(f"[DEBUG] DataFrame concatenato: {len(df_all)} righe")
+
+        if df_all.empty:
+            print("[DEBUG] DataFrame concatenato vuoto, ritorno DataFrame vuoto")
+            return pd.DataFrame()
+
+        if 'Skill' not in df_all.columns:
+            print(f"[ERROR] Colonna 'Skill' mancante! Colonne presenti: {df_all.columns.tolist()}")
+            return pd.DataFrame()
 
         # Calcola ore per skill
         ore_per_fascia = intervallo_minuti / 60.0

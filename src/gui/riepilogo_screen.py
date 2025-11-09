@@ -224,18 +224,29 @@ class RiepilogoScreen(ttk.Frame):
             all_operatori = []
             current_date = data_inizio
 
-            while current_date <= data_fine:
-                operatori_data = self.db_manager.get_operatori(current_date.strftime('%Y-%m-%d'))
+            print(f"[DEBUG RIEPILOGO] Caricamento operatori dal {data_inizio.strftime('%Y-%m-%d')} al {data_fine.strftime('%Y-%m-%d')}")
 
-                for row in operatori_data:
-                    op_dict = self._row_to_dict(row)
-                    op = Operatore(**op_dict)
-                    all_operatori.append(op)
+            while current_date <= data_fine:
+                data_str = current_date.strftime('%Y-%m-%d')
+                operatori_data = self.db_manager.get_operatori(data_str)
+
+                print(f"[DEBUG RIEPILOGO] Data {data_str}: trovati {len(operatori_data) if operatori_data else 0} operatori")
+
+                if operatori_data:
+                    for row in operatori_data:
+                        op_dict = self._row_to_dict(row)
+                        op = Operatore(**op_dict)
+                        all_operatori.append(op)
+                        print(f"[DEBUG RIEPILOGO] - Operatore: {op.cognome} {op.nome}, Skill: {op.etichetta_skill}")
 
                 current_date += timedelta(days=1)
 
+            print(f"[DEBUG RIEPILOGO] Totale operatori caricati: {len(all_operatori)}")
+
             if not all_operatori:
-                messagebox.showinfo("Info", "Nessun operatore trovato per il periodo selezionato.")
+                messagebox.showinfo("Info", "Nessun operatore trovato per il periodo selezionato.\n\n"
+                                           "Verificare che nella tabella Anagrafica_Operatori ci siano operatori "
+                                           "con Data_Riferimento nel periodo selezionato.")
                 self.db_manager.close()
                 return
 
