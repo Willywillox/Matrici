@@ -813,7 +813,7 @@ class ErlangConfigDialog(tk.Toplevel):
             all_forecast_data = []
             for data in date_da_caricare:
                 query = """
-                    SELECT Fascia_Oraria, Volume
+                    SELECT Fascia_Oraria, Volumi_Attesi
                     FROM Forecast
                     WHERE date(Fascia_Oraria) = date(?)
                       AND Skill = ?
