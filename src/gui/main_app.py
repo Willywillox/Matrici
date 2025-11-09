@@ -2,7 +2,7 @@
 Applicazione principale Matrici - GUI rifatta
 """
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 import sys
 import os
 from datetime import datetime
@@ -736,8 +736,84 @@ class MatriciApp:
 
     def import_forecast(self):
         """Importa forecast da Excel"""
-        messagebox.showinfo("In sviluppo", "Funzione import forecast da Excel in sviluppo.\n\n"
-                                          "Per ora usa lo script di test per popolare forecast.")
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel forecast",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ]
+        )
+
+        if not file_path:
+            return  # Utente ha annullato
+
+        # Chiedi se sostituire o aggiungere
+        replace = messagebox.askyesnocancel(
+            "Modalità Import",
+            "Vuoi SOSTITUIRE i forecast esistenti per le date nel file?\n\n"
+            "• SÌ = Sostituisci forecast esistenti\n"
+            "• NO = Aggiungi ai forecast esistenti\n"
+            "• ANNULLA = Annulla operazione"
+        )
+
+        if replace is None:
+            return  # Utente ha annullato
+
+        try:
+            # Importa la funzione di import
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+            from import_forecast import import_forecast as do_import
+
+            # Mostra dialog di attesa
+            progress_window = tk.Toplevel(self.root)
+            progress_window.title("Import in corso...")
+            progress_window.geometry("400x150")
+            progress_window.transient(self.root)
+            progress_window.grab_set()
+
+            ttk.Label(progress_window, text="Import forecast in corso...",
+                     font=('Arial', 12, 'bold')).pack(pady=20)
+            ttk.Label(progress_window, text="Attendere prego...").pack(pady=10)
+            progress_bar = ttk.Progressbar(progress_window, mode='indeterminate')
+            progress_bar.pack(pady=10, padx=40, fill='x')
+            progress_bar.start(10)
+
+            progress_window.update()
+
+            # Esegui import
+            success = do_import(
+                excel_file=file_path,
+                db_path=self.db_manager.db_path,
+                replace_existing=replace
+            )
+
+            # Chiudi dialog attesa
+            progress_window.destroy()
+
+            if success:
+                messagebox.showinfo(
+                    "Successo",
+                    "Forecast importati con successo!\n\n"
+                    "Aggiorna la dashboard Capability per visualizzarli."
+                )
+                # Ricarica dashboard se esiste
+                if hasattr(self, 'tab_capability') and self.tab_capability:
+                    try:
+                        self.tab_capability.load_skills()
+                    except:
+                        pass
+            else:
+                messagebox.showerror(
+                    "Errore",
+                    "Errore durante l'import del forecast.\n\n"
+                    "Controlla la console per dettagli."
+                )
+
+        except Exception as e:
+            if 'progress_window' in locals():
+                progress_window.destroy()
+            messagebox.showerror("Errore", f"Errore import forecast:\n{str(e)}")
 
     def manual_forecast(self):
         """Inserimento manuale forecast"""

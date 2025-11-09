@@ -561,7 +561,57 @@ class MainWindow:
 
     def importa_forecast(self):
         """Importa forecast da Excel"""
-        messagebox.showinfo("In sviluppo", "Funzione importazione forecast in sviluppo")
+        # Seleziona file Excel
+        file_path = filedialog.askopenfilename(
+            title="Seleziona file Excel forecast",
+            filetypes=[
+                ("File Excel", "*.xlsx *.xls"),
+                ("Tutti i file", "*.*")
+            ]
+        )
+
+        if not file_path:
+            return  # Utente ha annullato
+
+        # Chiedi se sostituire o aggiungere
+        replace = messagebox.askyesnocancel(
+            "Modalità Import",
+            "Vuoi SOSTITUIRE i forecast esistenti per le date nel file?\n\n"
+            "• SÌ = Sostituisci forecast esistenti\n"
+            "• NO = Aggiungi ai forecast esistenti\n"
+            "• ANNULLA = Annulla operazione"
+        )
+
+        if replace is None:
+            return  # Utente ha annullato
+
+        try:
+            # Importa la funzione di import
+            sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'scripts'))
+            from import_forecast import import_forecast as do_import
+
+            # Esegui import con feedback
+            success = do_import(
+                excel_file=file_path,
+                db_path=self.db_manager.db_path if hasattr(self, 'db_manager') else 'data/operator_overtime.db',
+                replace_existing=replace
+            )
+
+            if success:
+                messagebox.showinfo(
+                    "Successo",
+                    "Forecast importati con successo!\n\n"
+                    "Aggiorna la dashboard Capability per visualizzarli."
+                )
+            else:
+                messagebox.showerror(
+                    "Errore",
+                    "Errore durante l'import del forecast.\n\n"
+                    "Controlla la console per dettagli."
+                )
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore import forecast:\n{str(e)}")
 
     def esporta_report(self):
         """Esporta report"""
