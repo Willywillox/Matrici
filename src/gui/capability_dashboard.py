@@ -171,8 +171,8 @@ class CapabilityDashboard(ttk.Frame):
         summary_grid.columnconfigure(3, weight=1)
 
         capability_indicators = [
-            ('capability_forecast', 'Forecast', '#9C27B0'),
-            ('capability_effettiva', 'Effettiva', '#4CAF50'),
+            ('capability_forecast', 'Prevista', '#9C27B0'),
+            ('capability_gestibile', 'Gestibile', '#4CAF50'),
             ('delta_capability', 'Delta', '#FF9800')
         ]
 
@@ -636,7 +636,7 @@ class CapabilityDashboard(ttk.Frame):
             # Mostra valori di default se non ci sono dati
             for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
                        'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
-                       'delta_ore', 'capability_forecast', 'capability_effettiva',
+                       'delta_ore', 'capability_forecast', 'capability_gestibile',
                        'delta_capability', 'coverage']:
                 if key in self.summary_labels:
                     self.summary_labels[key].config(text="--")
@@ -730,21 +730,15 @@ class CapabilityDashboard(ttk.Frame):
             delta_ore = ore_produzione - ore_richieste
 
             # === CAPABILITY ===
-            # Capability Forecast: target 100%
-            capability_forecast = 100.0
+            # Capability in valori assoluti (chiamate)
+            # Capability Forecast = Volumi Attesi
+            capability_forecast_val = volumi_attesi
 
-            # Capability Effettiva: media delle capability %
-            if 'Capability_%' in df.columns:
-                capability_valide = df['Capability_%'].dropna()
-                if len(capability_valide) > 0:
-                    capability_effettiva = capability_valide.mean()
-                else:
-                    capability_effettiva = 0
-            else:
-                capability_effettiva = 0
+            # Capability Gestibile = Gestibile
+            capability_gestibile_val = gestibile
 
-            # Delta Capability
-            delta_capability = capability_effettiva - capability_forecast
+            # Delta Capability = Gestibile - Volumi Attesi
+            delta_capability_val = gestibile - volumi_attesi
 
             # === COPERTURA ===
             # Calcola copertura media
@@ -784,11 +778,11 @@ class CapabilityDashboard(ttk.Frame):
             self.summary_labels['delta_ore'].config(text=delta_ore_text, foreground=delta_ore_color)
 
             # Capability Section
-            self.summary_labels['capability_forecast'].config(text=f"{capability_forecast:.0f}%")
-            self.summary_labels['capability_effettiva'].config(text=f"{capability_effettiva:.1f}%")
+            self.summary_labels['capability_forecast'].config(text=f"{int(capability_forecast_val)}")
+            self.summary_labels['capability_gestibile'].config(text=f"{int(capability_gestibile_val)}")
 
-            delta_capability_text = f"{delta_capability:+.1f}%"
-            delta_capability_color = '#4CAF50' if delta_capability >= 0 else '#F44336'
+            delta_capability_text = f"{delta_capability_val:+.0f}"
+            delta_capability_color = '#4CAF50' if delta_capability_val >= 0 else '#F44336'
             self.summary_labels['delta_capability'].config(text=delta_capability_text, foreground=delta_capability_color)
 
             # Coverage
@@ -808,7 +802,7 @@ class CapabilityDashboard(ttk.Frame):
             # Valori di fallback
             for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
                        'gestibile', 'delta_forecast', 'ore_richieste', 'ore_produzione',
-                       'delta_ore', 'capability_forecast', 'capability_effettiva',
+                       'delta_ore', 'capability_forecast', 'capability_gestibile',
                        'delta_capability', 'coverage']:
                 if key in self.summary_labels:
                     self.summary_labels[key].config(text="--")
