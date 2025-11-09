@@ -33,6 +33,7 @@ env/
 data/*.db
 data/*.accdb
 data/*.mdb
+*.db
 *.db-journal
 
 # IDE
