@@ -192,7 +192,17 @@ class CapabilityDashboard(ttk.Frame):
 
         # Treeview - colonne dinamiche con giustificativi
         base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
-        base_columns_after = ['FTE Eff.', 'Volumi FC', 'FTE Rich.', 'Agenti', 'Prod/h', 'Richiesto', 'Gest. Chiam.', 'Capability %', 'Delta', 'Copertura %', 'Stato']
+        # Riorganizzate per raggruppamento logico:
+        # FTE: Effettivi, Richiesti, Delta
+        # Forecast: Volumi, Gestibile, Delta
+        # Agenti e Produttività: Agenti, Prod/h
+        # Performance: Capability %, Copertura %, Stato
+        base_columns_after = [
+            'FTE Eff.', 'FTE Rich.', 'Delta FTE',
+            'Volumi FC', 'Gest. Chiam.', 'Delta FC',
+            'Agenti', 'Prod/h',
+            'Capability %', 'Copertura %', 'Stato'
+        ]
 
         # Inserisci colonne giustificativi tra In Strao e FTE Eff.
         columns = tuple(base_columns_before + self.tipologie_giustificativi + base_columns_after)
@@ -214,14 +224,14 @@ class CapabilityDashboard(ttk.Frame):
             'In Produzione': 100,
             'In Strao': 70,
             'FTE Eff.': 70,
-            'Volumi FC': 90,
             'FTE Rich.': 80,
-            'Agenti': 60,
-            'Prod/h': 70,
-            'Richiesto': 80,
+            'Delta FTE': 70,
+            'Volumi FC': 90,
             'Gest. Chiam.': 90,
+            'Delta FC': 70,
+            'Agenti': 70,
+            'Prod/h': 70,
             'Capability %': 90,
-            'Delta': 70,
             'Copertura %': 90,
             'Stato': 100
         }
@@ -537,12 +547,19 @@ class CapabilityDashboard(ttk.Frame):
                     values_list.append(int(valore_giust))
 
                 # Aggiungi valori finali
-                # Ordine: FTE Eff., Volumi FC, FTE Rich., Agenti, Prod/h, Richiesto, Gest. Chiam., Capability %, Delta, Copertura %, Stato
-                # Nota: "Richiesto" è lo stesso di "Agenti" (agenti richiesti)
+                # Nuovo ordine: FTE Eff., FTE Rich., Delta FTE, Volumi FC, Gest. Chiam., Delta FC, Agenti, Prod/h, Capability %, Copertura %, Stato
+
+                # Calcola Delta FTE
+                delta_fte = fte_eff - fte_rich
+
+                # Calcola Delta FC (forecast)
+                delta_fc = gestibile_chiamate - volumi_fc if volumi_fc > 0 else 0
+
                 values_list.extend([
-                    f"{fte_eff:.1f}", volumi_fc, f"{fte_rich:.1f}", agenti_richiesti, f"{prod_oraria:.1f}",
-                    agenti_richiesti, gestibile_chiamate,
-                    f"{capability_pct:.0f}%", f"{delta:+.1f}", f"{copertura:.0f}%", stato
+                    f"{fte_eff:.1f}", f"{fte_rich:.1f}", f"{delta_fte:+.1f}",
+                    volumi_fc, gestibile_chiamate, f"{delta_fc:+.0f}",
+                    agenti_richiesti, f"{prod_oraria:.1f}",
+                    f"{capability_pct:.0f}%", f"{copertura:.0f}%", stato
                 ])
 
                 self.tree.insert('', 'end', values=tuple(values_list), tags=(tag,))
