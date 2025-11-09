@@ -451,19 +451,18 @@ class CapabilityCalculator:
             # Senza configurazione, approssima
             return math.ceil(fte_richiesti)
 
-    def _calculate_produttivita(self, skill: str) -> float:
+    def _calculate_produttivita(self, skill: str, volume_riferimento: int = 100) -> float:
         """
-        Calcola la produttività (chiamate/ora) per uno skill usando configurazione Erlang
+        Calcola la produttività (chiamate/ora) per uno skill usando Erlang C
 
-        Formula: Produttività = (3600 / AHT_secondi) × (1 - shrinkage) × occupancy_target
-
-        Spiegazione:
-        - 3600 / AHT = numero massimo di chiamate/ora teoriche
-        - (1 - shrinkage) = riduzione per pause, meeting, formazione, etc.
-        - occupancy_target = percentuale di tempo effettivamente speso in chiamata
+        Formula nuova (basata su Erlang C):
+        1. Calcola occupancy (Available) da Erlang C per volume di riferimento
+        2. Minuto Utile = 60 × (1 - shrinkage) × (1 - occupancy)
+        3. Produttività oraria = (Minuto Utile × 60) / AHT
 
         Args:
             skill: Nome dello skill
+            volume_riferimento: Volume chiamate di riferimento per calcolo Erlang (default 100)
 
         Returns:
             Produttività in chiamate/ora per operatore
@@ -472,19 +471,43 @@ class CapabilityCalculator:
             config = self.erlang_configs[skill]
             aht_seconds = config.get('aht_seconds', 180)
             shrinkage = config.get('shrinkage', 0.30)
-            occupancy_target = config.get('occupancy_target', 0.85)
+            sl_target = config.get('service_level_target', 0.80)
+            sl_seconds = config.get('service_level_seconds', 20)
+            interval_minutes = config.get('interval_minutes', 30)
 
-            if aht_seconds > 0:
-                # Produttività = (chiamate massime/ora) × (1 - shrinkage) × occupancy
-                produttivita = (3600.0 / aht_seconds) * (1 - shrinkage) * occupancy_target
-            else:
-                # Fallback con 20 chiamate/ora base
-                produttivita = 20.0 * (1 - shrinkage) * occupancy_target
+            try:
+                # Calcola occupancy con Erlang C
+                traffic = self.erlang_calculator.calculate_traffic_intensity(
+                    volume_riferimento, aht_seconds, interval_minutes
+                )
+                agenti = self.erlang_calculator.required_agents(
+                    volume_riferimento, aht_seconds, sl_target, sl_seconds, interval_minutes
+                )
+                occupancy = self.erlang_calculator.calculate_occupancy(traffic, agenti)
 
-            return produttivita
+                # Calcola Minuto Utile: 60 × (1 - shrinkage) × (1 - occupancy)
+                minuto_utile = 60 * (1 - shrinkage) * (1 - occupancy)
+
+                # Produttività oraria: (Minuto Utile × 60) / AHT
+                if aht_seconds > 0:
+                    produttivita_oraria = (minuto_utile * 60) / aht_seconds
+                else:
+                    produttivita_oraria = 0
+
+                return produttivita_oraria
+
+            except Exception as e:
+                # Fallback in caso di errore
+                print(f"Errore calcolo produttività Erlang per {skill}: {e}")
+                # Usa formula semplificata
+                if aht_seconds > 0:
+                    return (60 * (1 - shrinkage) * 0.7 * 60) / aht_seconds
+                else:
+                    return 10.0
         else:
-            # Default: 20 chiamate/ora con 30% shrinkage e 85% occupancy
-            return 20.0 * 0.70 * 0.85
+            # Default: formula semplificata senza Erlang C
+            # Assumo occupancy 70%, shrinkage 30%
+            return (60 * 0.70 * 0.70 * 60) / 180  # ~ 9.8 chiamate/ora
 
     def _calculate_gestibile_chiamate(self, skill: str, operatori_produzione: int, produttivita_target: float) -> int:
         """

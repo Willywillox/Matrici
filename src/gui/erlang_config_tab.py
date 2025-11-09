@@ -51,10 +51,10 @@ class ErlangConfigTab(ttk.Frame):
         scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
         scroll_x.pack(side='bottom', fill='x')
 
-        # Colonne
+        # Colonne (aggiunte: Available%, Agenti, Min.Utile, Prod)
         columns = (
             'ID', 'Skill', 'Canale', 'AHT(s)', 'Concurr.', 'Shrink%',
-            'SL%', 'SL(s)', 'ASA(s)', 'Occ%', 'Interval', 'Note'
+            'SL%', 'SL(s)', 'Interval', 'Available%', 'Agenti', 'Min.Utile', 'Prod/Int', 'Note'
         )
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
@@ -67,17 +67,19 @@ class ErlangConfigTab(ttk.Frame):
         # Larghezze colonne
         column_widths = {
             'ID': 50,
-            'Skill': 180,
-            'Canale': 80,
-            'AHT(s)': 70,
-            'Concurr.': 80,
+            'Skill': 150,
+            'Canale': 70,
+            'AHT(s)': 60,
+            'Concurr.': 70,
             'Shrink%': 70,
-            'SL%': 60,
-            'SL(s)': 60,
-            'ASA(s)': 70,
-            'Occ%': 60,
+            'SL%': 50,
+            'SL(s)': 50,
             'Interval': 70,
-            'Note': 200
+            'Available%': 80,
+            'Agenti': 60,
+            'Min.Utile': 80,
+            'Prod/Int': 70,
+            'Note': 150
         }
 
         for col in columns:
@@ -117,6 +119,9 @@ class ErlangConfigTab(ttk.Frame):
             """)
 
             if configs:
+                from utils.erlang_calculator import ErlangCalculator
+                calculator = ErlangCalculator()
+
                 for cfg in configs:
                     config_id, skill, tipo_canale, aht, concurrency, shrinkage, \
                     sl_target, sl_seconds, asa_seconds, occ_target, interval, note = cfg
@@ -124,7 +129,31 @@ class ErlangConfigTab(ttk.Frame):
                     # Formatta valori
                     shrink_pct = f"{shrinkage*100:.0f}%" if shrinkage else "0%"
                     sl_pct = f"{sl_target*100:.0f}%" if sl_target else "0%"
-                    occ_pct = f"{occ_target*100:.0f}%" if occ_target else "0%"
+
+                    # === CALCOLO PARAMETRI ERLANG C ===
+                    # Usa volume di riferimento standard di 100 chiamate
+                    volume_ref = 100
+                    try:
+                        traffic = calculator.calculate_traffic_intensity(
+                            volume_ref, aht or 180, interval or 30
+                        )
+                        agenti = calculator.required_agents(
+                            volume_ref, aht or 180, sl_target or 0.8,
+                            sl_seconds or 20, interval or 30
+                        )
+                        available = calculator.calculate_occupancy(traffic, agenti)
+                        minuto_utile = 60 * (1 - (shrinkage or 0.3)) * (1 - available)
+                        produttivita = (minuto_utile * (interval or 30)) / (aht or 180)
+
+                        available_str = f"{available * 100:.1f}%"
+                        agenti_str = f"{agenti}"
+                        min_utile_str = f"{minuto_utile:.1f}s"
+                        prod_str = f"{produttivita:.2f}"
+                    except:
+                        available_str = "N/A"
+                        agenti_str = "N/A"
+                        min_utile_str = "N/A"
+                        prod_str = "N/A"
 
                     values = (
                         config_id,
@@ -135,9 +164,11 @@ class ErlangConfigTab(ttk.Frame):
                         shrink_pct,
                         sl_pct,
                         sl_seconds or 20,
-                        asa_seconds or 60,
-                        occ_pct,
                         f"{interval}m" if interval else "30m",
+                        available_str,
+                        agenti_str,
+                        min_utile_str,
+                        prod_str,
                         note or ''
                     )
 
@@ -358,42 +389,78 @@ class ErlangConfigDialog(tk.Toplevel):
         self.vars['shrinkage'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
-        # Occupancy
-        ttk.Label(form, text="Occupancy Target (%):").grid(row=row, column=0, sticky='w', pady=5)
-        occ_frame = ttk.Frame(form)
-        occ_frame.grid(row=row, column=1, sticky='w', pady=5)
-        self.vars['occupancy_target'] = tk.DoubleVar(value=85.0)
-        occ_entry = ttk.Entry(occ_frame, textvariable=self.vars['occupancy_target'], width=15)
-        occ_entry.pack(side='left')
-        ttk.Label(occ_frame, text="  (Target occupancy agenti - es: 85%)",
-                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+        # Volume di Riferimento (solo per calcoli, non salvato)
+        ttk.Label(form, text="Volume Riferimento:").grid(row=row, column=0, sticky='w', pady=5)
+        vol_frame = ttk.Frame(form)
+        vol_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['volume_riferimento'] = tk.IntVar(value=100)
+        vol_entry = ttk.Entry(vol_frame, textvariable=self.vars['volume_riferimento'], width=15)
+        vol_entry.pack(side='left')
+        ttk.Label(vol_frame, text="  (Chiamate/intervallo per calcoli - non salvato)",
+                 foreground='#FF9800', font=('Arial', 9)).pack(side='left', padx=5)
 
         # Bind per ricalcolo produttività
-        self.vars['occupancy_target'].trace_add('write', lambda *args: self.calculate_productivity())
+        self.vars['volume_riferimento'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
-        # === PRODUTTIVITÀ CALCOLATA ===
+        # === PARAMETRI CALCOLATI DA ERLANG C ===
         ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
         row += 1
 
-        ttk.Label(form, text="📊 Produttività Calcolata:",
-                 font=('Arial', 11, 'bold'), foreground='#2196F3').grid(row=row, column=0, sticky='w', pady=5)
-        prod_frame = ttk.Frame(form)
-        prod_frame.grid(row=row, column=1, sticky='w', pady=5)
-
-        self.productivity_label = ttk.Label(prod_frame, text="-- chiamate/ora",
-                                           font=('Arial', 12, 'bold'), foreground='#4CAF50')
-        self.productivity_label.pack(side='left')
-        ttk.Label(prod_frame, text="  per operatore",
-                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+        ttk.Label(form, text="📊 Parametri Calcolati (da Erlang C):",
+                 font=('Arial', 11, 'bold'), foreground='#2196F3').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
         row += 1
 
+        # Available (Occupancy calcolato)
+        ttk.Label(form, text="Available (%):").grid(row=row, column=0, sticky='w', pady=3)
+        avail_frame = ttk.Frame(form)
+        avail_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.available_label = ttk.Label(avail_frame, text="--",
+                                        font=('Arial', 11, 'bold'), foreground='#9C27B0')
+        self.available_label.pack(side='left')
+        ttk.Label(avail_frame, text="  (occupancy da Erlang C)",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Agenti richiesti
+        ttk.Label(form, text="Agenti Richiesti:").grid(row=row, column=0, sticky='w', pady=3)
+        agenti_frame = ttk.Frame(form)
+        agenti_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.agenti_label = ttk.Label(agenti_frame, text="--",
+                                      font=('Arial', 11, 'bold'), foreground='#FF5722')
+        self.agenti_label.pack(side='left')
+        ttk.Label(agenti_frame, text="  (per volume di riferimento)",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Minuto Utile
+        ttk.Label(form, text="Minuto Utile:").grid(row=row, column=0, sticky='w', pady=3)
+        min_utile_frame = ttk.Frame(form)
+        min_utile_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.minuto_utile_label = ttk.Label(min_utile_frame, text="--",
+                                           font=('Arial', 11, 'bold'), foreground='#FF9800')
+        self.minuto_utile_label.pack(side='left')
+        ttk.Label(min_utile_frame, text="  secondi/minuto",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Produttività
+        ttk.Label(form, text="Produttività:").grid(row=row, column=0, sticky='w', pady=3)
+        prod_frame = ttk.Frame(form)
+        prod_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.productivity_label = ttk.Label(prod_frame, text="--",
+                                           font=('Arial', 11, 'bold'), foreground='#4CAF50')
+        self.productivity_label.pack(side='left')
+        ttk.Label(prod_frame, text="  chiamate/fascia/operatore",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Formula
         ttk.Label(form, text="", foreground='#666', font=('Arial', 9)).grid(row=row, column=0, sticky='w')
         formula_frame = ttk.Frame(form)
         formula_frame.grid(row=row, column=1, sticky='w', pady=(0, 5))
-
         self.productivity_formula_label = ttk.Label(formula_frame,
-                                                   text="Formula: (3600/AHT) × (1-Shrink) × Occupancy",
+                                                   text="Formula: Minuto Utile × Intervallo / AHT",
                                                    foreground='#888', font=('Arial', 8, 'italic'))
         self.productivity_formula_label.pack(side='left')
         row += 1
@@ -416,6 +483,9 @@ class ErlangConfigDialog(tk.Toplevel):
         self.sl_target_label = ttk.Label(sl_frame, text="  (% chiamate entro target - es: 80%)",
                                         foreground='#666', font=('Arial', 9))
         self.sl_target_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['service_level_target'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
         # SL Seconds
@@ -428,6 +498,9 @@ class ErlangConfigDialog(tk.Toplevel):
         self.sl_seconds_label = ttk.Label(sls_frame, text="  (Secondi target risposta - es: 20)",
                                          foreground='#666', font=('Arial', 9))
         self.sl_seconds_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['service_level_seconds'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
         # === SEZIONE ASA (Chat) ===
@@ -458,9 +531,13 @@ class ErlangConfigDialog(tk.Toplevel):
         int_frame = ttk.Frame(form)
         int_frame.grid(row=row, column=1, sticky='w', pady=5)
         self.vars['interval_minutes'] = tk.IntVar(value=30)
-        ttk.Entry(int_frame, textvariable=self.vars['interval_minutes'], width=15).pack(side='left')
-        ttk.Label(int_frame, text="  (Tipicamente 30 minuti)",
+        interval_entry = ttk.Entry(int_frame, textvariable=self.vars['interval_minutes'], width=15)
+        interval_entry.pack(side='left')
+        ttk.Label(int_frame, text="  (Tipicamente 15 o 30 minuti)",
                  foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['interval_minutes'].trace_add('write', lambda *args: self.calculate_productivity())
         row += 1
 
         # Note
@@ -501,39 +578,89 @@ class ErlangConfigDialog(tk.Toplevel):
         self.calculate_productivity()
 
     def calculate_productivity(self):
-        """Calcola e visualizza la produttività in tempo reale"""
+        """Calcola parametri usando Erlang C in tempo reale"""
         try:
+            from utils.erlang_calculator import ErlangCalculator
+
             # Ottieni valori correnti
             aht = self.vars['aht_seconds'].get()
-            shrinkage = self.vars['shrinkage'].get() / 100.0  # Converti % in decimale
-            occupancy = self.vars['occupancy_target'].get() / 100.0  # Converti % in decimale
+            shrinkage = self.vars['shrinkage'].get() / 100.0
+            sl_target = self.vars['service_level_target'].get() / 100.0
+            sl_seconds = self.vars['service_level_seconds'].get()
+            interval_minutes = self.vars['interval_minutes'].get()
+            volume = self.vars['volume_riferimento'].get()
 
             # Valida valori
-            if aht <= 0:
-                self.productivity_label.config(text="AHT non valido", foreground='#F44336')
+            if aht <= 0 or interval_minutes <= 0 or volume <= 0:
+                self._reset_calculated_fields()
                 return
 
-            if not (0 <= shrinkage < 1) or not (0 <= occupancy <= 1):
-                self.productivity_label.config(text="Valori % non validi", foreground='#F44336')
+            if not (0 < shrinkage < 1) or not (0 < sl_target <= 1):
+                self._reset_calculated_fields()
                 return
 
-            # Formula: (3600 / AHT) × (1 - shrinkage) × occupancy
-            productivity = (3600.0 / aht) * (1 - shrinkage) * occupancy
+            # === CALCOLO ERLANG C ===
+            calculator = ErlangCalculator()
 
-            # Aggiorna label con valore calcolato
+            # Calcola traffic intensity
+            traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
+
+            # Calcola agenti necessari per raggiungere Service Level target
+            agenti = calculator.required_agents(
+                volume, aht, sl_target, sl_seconds, interval_minutes
+            )
+
+            # Calcola occupancy (Available %)
+            available = calculator.calculate_occupancy(traffic, agenti)
+
+            # === CALCOLO MINUTO UTILE ===
+            # Formula: 60 × (1 - shrinkage) × (1 - available)
+            minuto_utile = 60 * (1 - shrinkage) * (1 - available)
+
+            # === CALCOLO PRODUTTIVITÀ ===
+            # Formula: Minuto Utile × intervallo / AHT
+            # Nota: intervallo è in minuti, AHT in secondi
+            if aht > 0:
+                produttivita = (minuto_utile * interval_minutes) / aht
+            else:
+                produttivita = 0
+
+            # === AGGIORNA LABELS ===
+            self.available_label.config(
+                text=f"{available * 100:.1f}%",
+                foreground='#9C27B0'
+            )
+
+            self.agenti_label.config(
+                text=f"{agenti} agenti",
+                foreground='#FF5722'
+            )
+
+            self.minuto_utile_label.config(
+                text=f"{minuto_utile:.2f} sec",
+                foreground='#FF9800'
+            )
+
             self.productivity_label.config(
-                text=f"{productivity:.2f} chiamate/ora",
+                text=f"{produttivita:.2f} chiam.",
                 foreground='#4CAF50'
             )
 
-            # Aggiorna formula con valori sostituiti
-            formula_text = f"Formula: (3600/{aht}) × (1-{shrinkage:.2f}) × {occupancy:.2f} = {productivity:.2f}"
+            # Aggiorna formula
+            formula_text = f"({minuto_utile:.2f} × {interval_minutes}) / {aht} = {produttivita:.2f}"
             self.productivity_formula_label.config(text=formula_text)
 
-        except (tk.TclError, ValueError, ZeroDivisionError):
+        except (tk.TclError, ValueError, ZeroDivisionError) as e:
             # Valore non valido durante digitazione
-            self.productivity_label.config(text="-- chiamate/ora", foreground='#4CAF50')
-            self.productivity_formula_label.config(text="Formula: (3600/AHT) × (1-Shrink) × Occupancy")
+            self._reset_calculated_fields()
+
+    def _reset_calculated_fields(self):
+        """Reset dei campi calcolati"""
+        self.available_label.config(text="--", foreground='#9C27B0')
+        self.agenti_label.config(text="--", foreground='#FF5722')
+        self.minuto_utile_label.config(text="--", foreground='#FF9800')
+        self.productivity_label.config(text="--", foreground='#4CAF50')
+        self.productivity_formula_label.config(text="Formula: Minuto Utile × Intervallo / AHT")
 
     def on_canale_change(self):
         """Gestisce cambio tipo canale"""
@@ -656,7 +783,7 @@ class ErlangConfigDialog(tk.Toplevel):
                 self.vars['service_level_target'].set((cfg[6] * 100) if cfg[6] else 80.0)
                 self.vars['service_level_seconds'].set(cfg[7] or 20)
                 self.vars['asa_target_seconds'].set(cfg[8] or 60)
-                self.vars['occupancy_target'].set((cfg[9] * 100) if cfg[9] else 85.0)
+                # Occupancy non più caricato - viene calcolato da Erlang C
                 self.vars['interval_minutes'].set(cfg[10] or 30)
                 self.vars['note'].set(cfg[11] or '')
 
@@ -693,7 +820,8 @@ class ErlangConfigDialog(tk.Toplevel):
                 return
 
             sl_target = self.vars['service_level_target'].get() / 100.0
-            occ_target = self.vars['occupancy_target'].get() / 100.0
+            # Occupancy non più salvato - viene calcolato dinamicamente da Erlang C
+            occ_target = None
 
         except tk.TclError:
             messagebox.showerror("Errore", "Valori numerici non validi")
