@@ -28,13 +28,38 @@ class TemplatesTab(ttk.Frame):
         ttk.Label(title_frame, text="Scarica i template Excel per importare dati nel sistema",
                  font=('Arial', 10), foreground='#666').pack(anchor='w', pady=(5, 0))
 
-        # Container principale con scroll
-        main_container = ttk.Frame(self)
-        main_container.pack(fill='both', expand=True, padx=20, pady=10)
+        # Container con scrollbar
+        canvas_container = ttk.Frame(self)
+        canvas_container.pack(fill='both', expand=True, padx=5, pady=5)
+
+        # Canvas e scrollbar
+        canvas = tk.Canvas(canvas_container, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(canvas_container, orient="vertical", command=canvas.yview)
+
+        # Frame scrollabile
+        main_container = ttk.Frame(canvas)
+
+        # Configura scrolling
+        main_container.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=main_container, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        # Pack canvas e scrollbar
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # Bind mousewheel per scrolling
+        def _on_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind_all("<MouseWheel>", _on_mousewheel)
 
         # === SEZIONE IMPORT COMPLETO ===
         complete_frame = ttk.LabelFrame(main_container, text="📦 Template Completo", padding=15)
-        complete_frame.pack(fill='x', pady=(0, 15))
+        complete_frame.pack(fill='x', pady=(0, 15), padx=15)
 
         ttk.Label(complete_frame, text="Template con tutti gli sheet (Skills, Turni, Giustificativi, Operatori)",
                  font=('Arial', 9), foreground='#666').pack(anchor='w', pady=(0, 10))
@@ -51,7 +76,7 @@ class TemplatesTab(ttk.Frame):
 
         # === SEZIONE IMPORT DATI ===
         import_frame = ttk.LabelFrame(main_container, text="📤 Import Dati", padding=15)
-        import_frame.pack(fill='x', pady=(0, 15))
+        import_frame.pack(fill='x', pady=(0, 15), padx=15)
 
         ttk.Label(import_frame, text="Carica i dati compilati nei template Excel direttamente nel database",
                  font=('Arial', 9), foreground='#666').pack(anchor='w', pady=(0, 10))
@@ -116,7 +141,7 @@ class TemplatesTab(ttk.Frame):
 
         # === SEZIONE TEMPLATES SINGOLI ===
         singles_frame = ttk.LabelFrame(main_container, text="📑 Templates Singoli", padding=15)
-        singles_frame.pack(fill='both', expand=True)
+        singles_frame.pack(fill='both', expand=True, padx=15, pady=(0, 15))
 
         # Grid per templates singoli
         templates = [
@@ -199,7 +224,7 @@ class TemplatesTab(ttk.Frame):
 
         # === INFO PANEL ===
         info_frame = ttk.LabelFrame(main_container, text="ℹ️ Informazioni", padding=10)
-        info_frame.pack(fill='x', pady=(15, 0))
+        info_frame.pack(fill='x', pady=(0, 15), padx=15)
 
         info_text = (
             "I templates sono file Excel precompilati con:\n"
