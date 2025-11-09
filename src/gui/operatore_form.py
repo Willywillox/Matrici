@@ -19,6 +19,10 @@ class OperatoreForm(tk.Toplevel):
         self.geometry("850x600")
         self.resizable(True, True)
 
+        # Carica giustificativi dal database
+        self.giust_types = ['']  # Stringa vuota per "nessun giustificativo"
+        self.load_giustificativi()
+
         # Centra finestra
         self.update_idletasks()
         screen_width = self.winfo_screenwidth()
@@ -167,14 +171,12 @@ class OperatoreForm(tk.Toplevel):
         row += 1
         self.create_section(scrollable_frame, "GIUSTIFICATIVI (Max 5 Slot)", row)
 
-        giust_types = ['', 'Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo']
-
         for i in range(1, 6):
             row += 1
             ttk.Label(scrollable_frame, text=f"Giustificativo {i}:", font=('Arial', 9, 'bold')).grid(
                 row=row, column=0, sticky='w', padx=5)
             self.create_field(scrollable_frame, row, "Tipo:", f"Tipo_Giust_{i}",
-                             combo_values=giust_types, col_offset=1, label_width=8, entry_width=15)
+                             combo_values=self.giust_types, col_offset=1, label_width=8, entry_width=15)
             self.create_field(scrollable_frame, row, "Inizio:", f"Inizio_Giust_{i}",
                              is_time=True, col_offset=3, label_width=8)
             self.create_field(scrollable_frame, row, "Fine:", f"Fine_Giust_{i}",
@@ -399,6 +401,27 @@ class OperatoreForm(tk.Toplevel):
             messagebox.showerror("Errore", f"Errore caricamento operatore: {e}")
             import traceback
             traceback.print_exc()
+
+    def load_giustificativi(self):
+        """Carica lista giustificativi dal database"""
+        try:
+            self.db_manager.connect()
+            giustificativi = self.db_manager.execute_query(
+                "SELECT DISTINCT Codice_Giustificativo FROM Giustificativi ORDER BY Codice_Giustificativo"
+            )
+            self.db_manager.close()
+
+            if giustificativi:
+                # Aggiungi i codici alla lista (la stringa vuota è già presente)
+                self.giust_types.extend([row[0] for row in giustificativi])
+            else:
+                # Se il database è vuoto, usa valori di default
+                self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
+
+        except Exception as e:
+            # In caso di errore, usa valori di default
+            print(f"[WARNING] Errore caricamento giustificativi: {e}")
+            self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
 
     def calcola_pause_automatiche(self):
         """Calcola e assegna pause automaticamente con distribuzione intelligente"""

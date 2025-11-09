@@ -34,6 +34,10 @@ class CambioTurnoDialog(tk.Toplevel):
         self.vars_a = {}
         self.vars_b = {}
 
+        # Carica giustificativi dal database
+        self.giust_types = ['']  # Stringa vuota per "nessun giustificativo"
+        self.load_giustificativi()
+
         # Setup UI
         self.setup_ui()
         self.load_operatori()
@@ -207,14 +211,12 @@ class CambioTurnoDialog(tk.Toplevel):
             row=row, column=0, columnspan=2, sticky='ew', pady=(10, 5))
         row += 1
 
-        giust_types = ['', 'Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo']
-
         for i in range(1, 6):
             ttk.Label(scrollable_frame, text=f"Giust. {i}:", font=('Arial', 9, 'bold')).grid(
                 row=row, column=0, columnspan=2, sticky='w', pady=2)
             row += 1
             vars_dict[f'Tipo_Giust_{i}'] = self.create_combo_field(
-                scrollable_frame, row, "  Tipo:", giust_types)
+                scrollable_frame, row, "  Tipo:", self.giust_types)
             row += 1
             vars_dict[f'Inizio_Giust_{i}'] = self.create_editable_field(
                 scrollable_frame, row, "  Inizio:")
@@ -289,6 +291,27 @@ class CambioTurnoDialog(tk.Toplevel):
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore caricamento operatori:\n{e}")
+
+    def load_giustificativi(self):
+        """Carica lista giustificativi dal database"""
+        try:
+            self.db_manager.connect()
+            giustificativi = self.db_manager.execute_query(
+                "SELECT DISTINCT Codice_Giustificativo FROM Giustificativi ORDER BY Codice_Giustificativo"
+            )
+            self.db_manager.close()
+
+            if giustificativi:
+                # Aggiungi i codici alla lista (la stringa vuota è già presente)
+                self.giust_types.extend([row[0] for row in giustificativi])
+            else:
+                # Se il database è vuoto, usa valori di default
+                self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
+
+        except Exception as e:
+            # In caso di errore, usa valori di default
+            print(f"[WARNING] Errore caricamento giustificativi: {e}")
+            self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
 
     def on_operatore_a_selected(self, event=None):
         """Quando viene selezionato operatore A"""

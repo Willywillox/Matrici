@@ -21,6 +21,10 @@ class QuickEditDialog(tk.Toplevel):
         self.resizable(False, False)
 
         self.operatore_data = None
+
+        # Carica giustificativi dal database
+        self.giust_types = ['']  # Stringa vuota per "nessun giustificativo"
+        self.load_giustificativi()
         self.setup_ui()
 
         if operatore_id:
@@ -253,8 +257,6 @@ class QuickEditDialog(tk.Toplevel):
         canvas.configure(yscrollcommand=scrollbar.set)
 
         # Slot giustificativi
-        giust_types = ['', 'Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo']
-
         for i in range(1, 6):
             slot_frame = ttk.LabelFrame(scrollable_frame, text=f"Giustificativo {i}", padding=10)
             slot_frame.pack(fill='x', pady=5, padx=5)
@@ -265,7 +267,7 @@ class QuickEditDialog(tk.Toplevel):
             var_tipo = tk.StringVar()
             setattr(self, f'giust{i}_tipo_var', var_tipo)
             combo = ttk.Combobox(slot_frame, textvariable=var_tipo,
-                                values=giust_types, width=15, state='readonly')
+                                values=self.giust_types, width=15, state='readonly')
             combo.grid(row=0, column=1, sticky='w', padx=5, pady=5)
 
             # Orari
@@ -376,6 +378,27 @@ class QuickEditDialog(tk.Toplevel):
             messagebox.showerror("Errore", f"Errore caricamento dati: {e}")
             import traceback
             traceback.print_exc()
+
+    def load_giustificativi(self):
+        """Carica lista giustificativi dal database"""
+        try:
+            self.db_manager.connect()
+            giustificativi = self.db_manager.execute_query(
+                "SELECT DISTINCT Codice_Giustificativo FROM Giustificativi ORDER BY Codice_Giustificativo"
+            )
+            self.db_manager.close()
+
+            if giustificativi:
+                # Aggiungi i codici alla lista (la stringa vuota è già presente)
+                self.giust_types.extend([row[0] for row in giustificativi])
+            else:
+                # Se il database è vuoto, usa valori di default
+                self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
+
+        except Exception as e:
+            # In caso di errore, usa valori di default
+            print(f"[WARNING] Errore caricamento giustificativi: {e}")
+            self.giust_types.extend(['Assenza', 'Ferie', 'Malattia', 'Permesso', 'ROL', 'Congedo'])
 
     def populate_fields(self):
         """Popola i campi con dati operatore"""
