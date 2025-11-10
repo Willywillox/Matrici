@@ -393,17 +393,28 @@ class CapabilityDashboard(ttk.Frame):
             for row in operatori_data:
                 op_dict = self._row_to_dict(row)
                 data_rif = op_dict.get('Data_Riferimento')
-                if isinstance(data_rif, str):
-                    data_rif = datetime.strptime(data_rif, '%Y-%m-%d')
-                if data_rif:
-                    data_obj = data_rif.date() if isinstance(data_rif, datetime) else data_rif
 
-                    # Filtra per intervallo se non "Tutte le date"
-                    if not self.all_dates_var.get():
-                        if data_inizio.date() <= data_obj <= data_fine.date():
+                # Gestione sicura del parsing della data
+                try:
+                    if isinstance(data_rif, str):
+                        # Verifica che sia una data valida e non un altro valore come "Smart"
+                        if len(data_rif) >= 8 and '-' in data_rif:  # Formato YYYY-MM-DD minimo
+                            data_rif = datetime.strptime(data_rif, '%Y-%m-%d')
+                        else:
+                            continue  # Salta questa riga se non è una data valida
+                    if data_rif:
+                        data_obj = data_rif.date() if isinstance(data_rif, datetime) else data_rif
+
+                        # Filtra per intervallo se non "Tutte le date"
+                        if not self.all_dates_var.get():
+                            if data_inizio.date() <= data_obj <= data_fine.date():
+                                date_uniche.add(data_obj)
+                        else:
                             date_uniche.add(data_obj)
-                    else:
-                        date_uniche.add(data_obj)
+                except (ValueError, AttributeError) as e:
+                    # Ignora righe con dati non validi
+                    print(f"[WARNING] Data non valida ignorata: {data_rif}")
+                    continue
 
             if not date_uniche:
                 if self.all_dates_var.get():
@@ -427,8 +438,17 @@ class CapabilityDashboard(ttk.Frame):
                 for row in operatori_data:
                     op_dict = self._row_to_dict(row)
                     data_op = op_dict.get('Data_Riferimento')
-                    if isinstance(data_op, str):
-                        data_op = datetime.strptime(data_op, '%Y-%m-%d')
+
+                    # Gestione sicura del parsing della data
+                    try:
+                        if isinstance(data_op, str):
+                            # Verifica che sia una data valida
+                            if len(data_op) >= 8 and '-' in data_op:
+                                data_op = datetime.strptime(data_op, '%Y-%m-%d')
+                            else:
+                                continue  # Salta operatore con data non valida
+                    except ValueError:
+                        continue  # Salta operatore con data non valida
 
                     if data_op and data_op.date() == data_corrente.date():
                         op = Operatore(**op_dict)

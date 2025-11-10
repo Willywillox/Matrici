@@ -253,7 +253,7 @@ class MatriciApp:
                    'Giust_3_Tipo', 'Giust_3_Orario',
                    'Giust_4_Tipo', 'Giust_4_Orario',
                    'Giust_5_Tipo', 'Giust_5_Orario',
-                   'Skill', 'Postazione', 'Data')
+                   'Skill', 'Microskill', 'Postazione', 'Data')
 
         self.tree_operatori = ttk.Treeview(table_frame, columns=columns, show='headings',
                                            yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
@@ -273,7 +273,7 @@ class MatriciApp:
             'Giust_3_Tipo': 80, 'Giust_3_Orario': 100,
             'Giust_4_Tipo': 80, 'Giust_4_Orario': 100,
             'Giust_5_Tipo': 80, 'Giust_5_Orario': 100,
-            'Skill': 120, 'Postazione': 110, 'Data': 90
+            'Skill': 120, 'Microskill': 100, 'Postazione': 110, 'Data': 90
         }
 
         for col in columns:
@@ -681,10 +681,11 @@ class MatriciApp:
                         values[42] if len(values) > 42 else None
                     )
 
-                    # Skill, Postazione, Data
+                    # Skill, Microskill, Data, Postazione
                     skill = values[43] if len(values) > 43 and values[43] else ''
-                    data = values[44] if len(values) > 44 and values[44] else ''
-                    postazione = values[45] if len(values) > 45 and values[45] else 'Non specificata'
+                    microskill = values[44] if len(values) > 44 and values[44] else ''
+                    data = values[45] if len(values) > 45 and values[45] else ''
+                    postazione = values[46] if len(values) > 46 and values[46] else 'Non specificata'
 
                     # Costruisci riga completa
                     row_data = (
@@ -697,7 +698,7 @@ class MatriciApp:
                         giust_3_tipo, giust_3_orario,
                         giust_4_tipo, giust_4_orario,
                         giust_5_tipo, giust_5_orario,
-                        skill, postazione, data
+                        skill, microskill, postazione, data
                     )
                 except (IndexError, Exception) as e:
                     # Fallback se indici non corrispondono
