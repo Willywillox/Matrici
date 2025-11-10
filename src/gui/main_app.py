@@ -681,13 +681,14 @@ class MatriciApp:
                         values[42] if len(values) > 42 else None
                     )
 
-                    # Skill, Microskill, Data, Postazione
+                    # Ordine colonne nel DB: Skill(43), Data(44), Postazione(45), Microskill(46)
+                    # Microskill è stato aggiunto alla fine dalla migrazione
                     skill = values[43] if len(values) > 43 and values[43] else ''
-                    microskill = values[44] if len(values) > 44 and values[44] else ''
-                    data = values[45] if len(values) > 45 and values[45] else ''
-                    postazione = values[46] if len(values) > 46 and values[46] else 'Non specificata'
+                    data = values[44] if len(values) > 44 and values[44] else ''
+                    postazione = values[45] if len(values) > 45 and values[45] else 'Non specificata'
+                    microskill = values[46] if len(values) > 46 and values[46] else ''
 
-                    # Costruisci riga completa
+                    # Costruisci riga completa (ordine treeview: Skill, Microskill, Postazione, Data)
                     row_data = (
                         op_id, id_sap, nome, cognome, contratto, fte,
                         turno, turno_spezzato,
