@@ -1,0 +1,1353 @@
+"""
+Tab per configurazione parametri Erlang C per skill
+
+Permette di configurare per ogni skill:
+- Tipo canale (Voice, Chat, Email)
+- AHT (Average Handle Time)
+- Concurrency (per chat)
+- Shrinkage
+- Service Level targets
+- ASA (Average Speed to Answer) per chat
+"""
+
+import tkinter as tk
+from tkinter import ttk, messagebox
+from datetime import datetime
+
+
+class ErlangConfigTab(ttk.Frame):
+    """Tab per gestione configurazioni Erlang C"""
+
+    def __init__(self, parent, db_manager):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.setup_ui()
+        self.refresh_table()
+
+    def setup_ui(self):
+        """Crea l'interfaccia del tab"""
+
+        # === PANNELLO PULSANTI ===
+        button_frame = ttk.Frame(self)
+        button_frame.pack(fill='x', padx=10, pady=10)
+
+        ttk.Button(button_frame, text="➕ Nuova Configurazione",
+                  command=self.add_config, width=25).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="✏️ Modifica",
+                  command=self.edit_config, width=20).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="🗑️ Elimina",
+                  command=self.delete_config, width=20).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="🔄 Aggiorna",
+                  command=self.refresh_table, width=20).pack(side='left', padx=5)
+
+        # === TABELLA CONFIGURAZIONI ===
+        table_frame = ttk.LabelFrame(self, text="Configurazioni Erlang C per Skill", padding=10)
+        table_frame.pack(fill='both', expand=True, padx=10, pady=5)
+
+        # Scrollbars
+        scroll_y = ttk.Scrollbar(table_frame, orient='vertical')
+        scroll_y.pack(side='right', fill='y')
+
+        scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
+        scroll_x.pack(side='bottom', fill='x')
+
+        # Colonne (aggiunte: Available%, Agenti, Min.Utile, Prod)
+        columns = (
+            'ID', 'Skill', 'Canale', 'AHT(s)', 'Concurr.', 'Shrink%',
+            'SL%', 'SL(s)', 'Interval', 'Available%', 'Agenti', 'Min.Utile', 'Prod/Int', 'Note'
+        )
+
+        self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                 yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set,
+                                 height=20)
+
+        scroll_y.config(command=self.tree.yview)
+        scroll_x.config(command=self.tree.xview)
+
+        # Larghezze colonne
+        column_widths = {
+            'ID': 50,
+            'Skill': 150,
+            'Canale': 70,
+            'AHT(s)': 60,
+            'Concurr.': 70,
+            'Shrink%': 70,
+            'SL%': 50,
+            'SL(s)': 50,
+            'Interval': 70,
+            'Available%': 80,
+            'Agenti': 60,
+            'Min.Utile': 80,
+            'Prod/Int': 70,
+            'Note': 150
+        }
+
+        for col in columns:
+            self.tree.heading(col, text=col)
+            width = column_widths.get(col, 100)
+            self.tree.column(col, width=width, anchor='center' if col != 'Note' else 'w')
+
+        self.tree.pack(fill='both', expand=True)
+
+        # Double-click per modificare
+        self.tree.bind('<Double-1>', lambda e: self.edit_config())
+
+        # === INFO PANEL ===
+        info_frame = ttk.Frame(self)
+        info_frame.pack(fill='x', padx=10, pady=5)
+
+        info_text = ("💡 Configurazione Erlang C: definisci AHT, Service Level, Shrinkage e altri parametri per ogni skill. "
+                    "Per CHAT, imposta Concurrency > 1 (quante chat simultanee per agente) e ASA target.")
+        ttk.Label(info_frame, text=info_text, wraplength=1000,
+                 font=('Arial', 9), foreground='#555').pack()
+
+    def refresh_table(self):
+        """Aggiorna la tabella con i dati dal database"""
+        # Pulisci tabella
+        for item in self.tree.get_children():
+            self.tree.delete(item)
+
+        try:
+            self.db_manager.connect()
+
+            configs = self.db_manager.execute_query("""
+                SELECT ID, Skill, Tipo_Canale, AHT_Seconds, Concurrency,
+                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                FROM Erlang_Config
+                ORDER BY Skill
+            """)
+
+            if configs:
+                from utils.erlang_calculator import ErlangCalculator
+                calculator = ErlangCalculator()
+
+                for cfg in configs:
+                    config_id, skill, tipo_canale, aht, concurrency, shrinkage, \
+                    sl_target, sl_seconds, asa_seconds, occ_target, interval, note = cfg
+
+                    # Formatta valori
+                    shrink_pct = f"{shrinkage*100:.0f}%" if shrinkage else "0%"
+                    sl_pct = f"{sl_target*100:.0f}%" if sl_target else "0%"
+
+                    # === CALCOLO PARAMETRI ERLANG C ===
+                    # Usa volume di riferimento standard di 100 chiamate
+                    volume_ref = 100
+                    try:
+                        if tipo_canale == 'BO':
+                            # BO: Calcolo semplice solo su AHT
+                            interval_seconds = (interval or 30) * 60
+                            agenti = int(volume_ref * (aht or 180) / interval_seconds) + 1
+                            available = 0.0
+                        else:
+                            # Voice/Chat: Usa Erlang C
+                            traffic = calculator.calculate_traffic_intensity(
+                                volume_ref, aht or 180, interval or 30
+                            )
+                            agenti = calculator.required_agents(
+                                volume_ref, aht or 180, sl_target or 0.8,
+                                sl_seconds or 20, interval or 30
+                            )
+                            available = calculator.calculate_occupancy(traffic, agenti)
+
+                        minuto_utile = 60 * (1 - (shrinkage or 0.3)) * (1 - available)
+                        produttivita = (minuto_utile * (interval or 30)) / (aht or 180)
+
+                        available_str = f"{available * 100:.1f}%"
+                        agenti_str = f"{agenti}"
+                        min_utile_str = f"{minuto_utile:.1f}s"
+                        prod_str = f"{produttivita:.2f}"
+                    except:
+                        available_str = "N/A"
+                        agenti_str = "N/A"
+                        min_utile_str = "N/A"
+                        prod_str = "N/A"
+
+                    values = (
+                        config_id,
+                        skill,
+                        tipo_canale or 'Voice',
+                        aht or 180,
+                        concurrency or 1,
+                        shrink_pct,
+                        sl_pct,
+                        sl_seconds or 20,
+                        f"{interval}m" if interval else "30m",
+                        available_str,
+                        agenti_str,
+                        min_utile_str,
+                        prod_str,
+                        note or ''
+                    )
+
+                    # Tag colore per tipo canale
+                    tag = 'voice' if tipo_canale == 'Voice' else 'chat' if tipo_canale == 'Chat' else 'bo'
+                    self.tree.insert('', 'end', values=values, tags=(tag,))
+
+            self.db_manager.close()
+
+            # Tag colors
+            self.tree.tag_configure('voice', background='#E8F4F8')
+            self.tree.tag_configure('chat', background='#FFF4E6')
+            self.tree.tag_configure('bo', background='#E8F5E9')
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore caricamento configurazioni:\n{e}")
+
+    def add_config(self):
+        """Apre dialog per aggiungere nuova configurazione"""
+        dialog = ErlangConfigDialog(self, self.db_manager, mode='add')
+        self.wait_window(dialog)
+        self.refresh_table()
+
+    def edit_config(self):
+        """Modifica configurazione selezionata"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Attenzione", "Selezionare una configurazione da modificare")
+            return
+
+        item = self.tree.item(selection[0])
+        config_id = item['values'][0]
+
+        dialog = ErlangConfigDialog(self, self.db_manager, mode='edit', config_id=config_id)
+        self.wait_window(dialog)
+        self.refresh_table()
+
+    def delete_config(self):
+        """Elimina configurazione selezionata"""
+        selection = self.tree.selection()
+        if not selection:
+            messagebox.showwarning("Attenzione", "Selezionare una configurazione da eliminare")
+            return
+
+        item = self.tree.item(selection[0])
+        config_id = item['values'][0]
+        skill = item['values'][1]
+
+        risposta = messagebox.askyesno(
+            "Conferma Eliminazione",
+            f"Eliminare la configurazione Erlang per skill '{skill}'?\n\n"
+            "I calcoli FTE richiesti non funzioneranno più per questa skill."
+        )
+
+        if not risposta:
+            return
+
+        try:
+            self.db_manager.connect()
+            self.db_manager.execute_update(
+                "DELETE FROM Erlang_Config WHERE ID = ?",
+                (config_id,)
+            )
+            self.db_manager.close()
+
+            messagebox.showinfo("Successo", f"Configurazione '{skill}' eliminata")
+            self.refresh_table()
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore eliminazione:\n{e}")
+
+
+class ErlangConfigDialog(tk.Toplevel):
+    """Dialog per aggiungere/modificare configurazione Erlang"""
+
+    def __init__(self, parent, db_manager, mode='add', config_id=None):
+        super().__init__(parent)
+        self.db_manager = db_manager
+        self.mode = mode
+        self.config_id = config_id
+
+        self.title("Nuova Configurazione Erlang" if mode == 'add' else "Modifica Configurazione Erlang")
+        self.geometry("700x750")
+        self.resizable(False, False)
+
+        # Centra finestra
+        self.update_idletasks()
+        x = (self.winfo_screenwidth() - 700) // 2
+        y = (self.winfo_screenheight() - 750) // 2
+        self.geometry(f"700x750+{x}+{y}")
+
+        self.vars = {}
+        self.available_skills = []
+        self._load_skills()
+        self.setup_ui()
+
+        if mode == 'edit' and config_id:
+            self.load_config()
+
+    def setup_ui(self):
+        """Crea form configurazione"""
+
+        # Canvas con scrollbar
+        canvas = tk.Canvas(self, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(self, orient="vertical", command=canvas.yview)
+
+        scrollable_frame = ttk.Frame(canvas)
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # === FORM ===
+        form = ttk.Frame(scrollable_frame, padding=20)
+        form.pack(fill='both', expand=True)
+
+        row = 0
+
+        # Titolo
+        ttk.Label(form, text="Configurazione Parametri Erlang C",
+                 font=('Arial', 14, 'bold')).grid(row=row, column=0, columnspan=2, pady=(0, 20))
+        row += 1
+
+        # === SEZIONE BASE ===
+        ttk.Label(form, text="📊 Informazioni Base",
+                 font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(10, 5))
+        row += 1
+
+        # Skill
+        ttk.Label(form, text="Skill/Coda:*").grid(row=row, column=0, sticky='w', pady=5)
+        skill_frame = ttk.Frame(form)
+        skill_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        self.vars['skill'] = tk.StringVar()
+
+        # Debug: stampa cosa viene passato al Combobox
+        print(f"[DEBUG] Creazione Combobox con {len(self.available_skills)} skills: {self.available_skills}")
+
+        skill_combo = ttk.Combobox(skill_frame, textvariable=self.vars['skill'],
+                                    values=self.available_skills, width=37, state='normal')
+        skill_combo.pack(side='left')
+
+        if self.mode == 'edit':
+            skill_combo.config(state='readonly')  # Skill non modificabile in edit
+        elif self.available_skills:
+            skill_combo.current(0)  # Seleziona primo skill di default
+
+        # Etichetta informativa
+        if not self.available_skills and self.mode == 'add':
+            ttk.Label(skill_frame, text="  💡 Digita manualmente lo skill (es: CMB, Voice, Chat)",
+                     foreground='#2196F3', font=('Arial', 8)).pack(side='left', padx=5)
+        elif self.mode == 'add':
+            ttk.Label(skill_frame, text="  💡 Seleziona o digita uno skill",
+                     foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+
+        row += 1
+
+        # Tipo Canale
+        ttk.Label(form, text="Tipo Canale:*").grid(row=row, column=0, sticky='w', pady=5)
+        self.vars['tipo_canale'] = tk.StringVar(value='Voice')
+        canale_frame = ttk.Frame(form)
+        canale_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        ttk.Radiobutton(canale_frame, text="📞 Voice", variable=self.vars['tipo_canale'],
+                       value='Voice', command=self.on_canale_change).pack(side='left', padx=5)
+        ttk.Radiobutton(canale_frame, text="💬 Chat", variable=self.vars['tipo_canale'],
+                       value='Chat', command=self.on_canale_change).pack(side='left', padx=5)
+        ttk.Radiobutton(canale_frame, text="📋 BO", variable=self.vars['tipo_canale'],
+                       value='BO', command=self.on_canale_change).pack(side='left', padx=5)
+        row += 1
+
+        # === SEZIONE PARAMETRI OPERATIVI ===
+        ttk.Label(form, text="⚙️ Parametri Operativi",
+                 font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(15, 5))
+        row += 1
+
+        # AHT
+        ttk.Label(form, text="AHT (secondi):*").grid(row=row, column=0, sticky='w', pady=5)
+        aht_frame = ttk.Frame(form)
+        aht_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['aht_seconds'] = tk.IntVar(value=180)
+        aht_entry = ttk.Entry(aht_frame, textvariable=self.vars['aht_seconds'], width=15)
+        aht_entry.pack(side='left')
+        ttk.Label(aht_frame, text="  (Average Handle Time - es: 180 = 3 minuti)",
+                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['aht_seconds'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # Concurrency (solo per Chat)
+        ttk.Label(form, text="Concurrency:").grid(row=row, column=0, sticky='w', pady=5)
+        concurr_frame = ttk.Frame(form)
+        concurr_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['concurrency'] = tk.IntVar(value=1)
+        self.concurrency_entry = ttk.Entry(concurr_frame, textvariable=self.vars['concurrency'], width=15)
+        self.concurrency_entry.pack(side='left')
+        self.concurrency_label = ttk.Label(concurr_frame,
+                                           text="  (Chat simultanee per agente - es: 3)",
+                                           foreground='#666', font=('Arial', 9))
+        self.concurrency_label.pack(side='left', padx=5)
+        row += 1
+
+        # Shrinkage
+        ttk.Label(form, text="Shrinkage (%):*").grid(row=row, column=0, sticky='w', pady=5)
+        shr_frame = ttk.Frame(form)
+        shr_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['shrinkage'] = tk.DoubleVar(value=30.0)
+        shr_entry = ttk.Entry(shr_frame, textvariable=self.vars['shrinkage'], width=15)
+        shr_entry.pack(side='left')
+        ttk.Label(shr_frame, text="  (Tempo non produttivo - es: 30%)",
+                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['shrinkage'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # Volume di Riferimento (solo per calcoli, non salvato)
+        ttk.Label(form, text="Volume Riferimento:").grid(row=row, column=0, sticky='w', pady=5)
+        vol_frame = ttk.Frame(form)
+        vol_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['volume_riferimento'] = tk.IntVar(value=100)
+        vol_entry = ttk.Entry(vol_frame, textvariable=self.vars['volume_riferimento'], width=15)
+        vol_entry.pack(side='left')
+        ttk.Label(vol_frame, text="  (Chiamate/intervallo per calcoli - non salvato)",
+                 foreground='#FF9800', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo produttività
+        self.vars['volume_riferimento'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # === PARAMETRI CALCOLATI DA ERLANG C ===
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
+        row += 1
+
+        ttk.Label(form, text="📊 Parametri Calcolati (da Erlang C):",
+                 font=('Arial', 11, 'bold'), foreground='#2196F3').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
+        row += 1
+
+        # Available (%) - Manuale o da Ready
+        ttk.Label(form, text="Available (%):").grid(row=row, column=0, sticky='w', pady=3)
+        avail_frame = ttk.Frame(form)
+        avail_frame.grid(row=row, column=1, sticky='w', pady=3)
+
+        # Radio button per scegliere modalità
+        self.vars['available_mode'] = tk.StringVar(value='erlang')
+        ttk.Radiobutton(avail_frame, text="Erlang C", variable=self.vars['available_mode'],
+                       value='erlang', command=self.on_available_mode_change).pack(side='left', padx=2)
+        ttk.Radiobutton(avail_frame, text="Manuale", variable=self.vars['available_mode'],
+                       value='manuale', command=self.on_available_mode_change).pack(side='left', padx=2)
+        ttk.Radiobutton(avail_frame, text="Da Ready", variable=self.vars['available_mode'],
+                       value='ready', command=self.on_available_mode_change).pack(side='left', padx=2)
+        row += 1
+
+        # Campo valore Available
+        ttk.Label(form, text="").grid(row=row, column=0, sticky='w', pady=3)
+        avail_value_frame = ttk.Frame(form)
+        avail_value_frame.grid(row=row, column=1, sticky='w', pady=3)
+
+        # Entry per inserimento manuale
+        self.vars['available_manuale'] = tk.DoubleVar(value=0.0)
+        self.available_entry = ttk.Entry(avail_value_frame, textvariable=self.vars['available_manuale'],
+                                        width=10, state='disabled')
+        self.available_entry.pack(side='left', padx=2)
+
+        # Label per valore calcolato
+        self.available_label = ttk.Label(avail_value_frame, text="--",
+                                        font=('Arial', 11, 'bold'), foreground='#9C27B0')
+        self.available_label.pack(side='left', padx=5)
+
+        self.available_info_label = ttk.Label(avail_value_frame, text="(da Erlang C)",
+                 foreground='#666', font=('Arial', 8))
+        self.available_info_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['available_manuale'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # Occupancy (calcolato da Available)
+        ttk.Label(form, text="Occupancy (%):").grid(row=row, column=0, sticky='w', pady=3)
+        occupancy_frame = ttk.Frame(form)
+        occupancy_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.occupancy_label = ttk.Label(occupancy_frame, text="--",
+                                        font=('Arial', 11, 'bold'), foreground='#673AB7')
+        self.occupancy_label.pack(side='left')
+        ttk.Label(occupancy_frame, text="  (1 - Available)",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Agenti richiesti
+        ttk.Label(form, text="Agenti Richiesti:").grid(row=row, column=0, sticky='w', pady=3)
+        agenti_frame = ttk.Frame(form)
+        agenti_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.agenti_label = ttk.Label(agenti_frame, text="--",
+                                      font=('Arial', 11, 'bold'), foreground='#FF5722')
+        self.agenti_label.pack(side='left')
+        ttk.Label(agenti_frame, text="  (per volume di riferimento)",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Minuto Utile
+        ttk.Label(form, text="Minuto Utile:").grid(row=row, column=0, sticky='w', pady=3)
+        min_utile_frame = ttk.Frame(form)
+        min_utile_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.minuto_utile_label = ttk.Label(min_utile_frame, text="--",
+                                           font=('Arial', 11, 'bold'), foreground='#FF9800')
+        self.minuto_utile_label.pack(side='left')
+        ttk.Label(min_utile_frame, text="  secondi/minuto",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Produttività
+        ttk.Label(form, text="Produttività:").grid(row=row, column=0, sticky='w', pady=3)
+        prod_frame = ttk.Frame(form)
+        prod_frame.grid(row=row, column=1, sticky='w', pady=3)
+        self.productivity_label = ttk.Label(prod_frame, text="--",
+                                           font=('Arial', 11, 'bold'), foreground='#4CAF50')
+        self.productivity_label.pack(side='left')
+        ttk.Label(prod_frame, text="  chiamate/fascia/operatore",
+                 foreground='#666', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Formula
+        ttk.Label(form, text="", foreground='#666', font=('Arial', 9)).grid(row=row, column=0, sticky='w')
+        formula_frame = ttk.Frame(form)
+        formula_frame.grid(row=row, column=1, sticky='w', pady=(0, 5))
+        self.productivity_formula_label = ttk.Label(formula_frame,
+                                                   text="Formula: Minuto Utile × Intervallo / AHT",
+                                                   foreground='#888', font=('Arial', 8, 'italic'))
+        self.productivity_formula_label.pack(side='left')
+        row += 1
+
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
+        row += 1
+
+        # === SEZIONE CALCOLO READY ===
+        ttk.Label(form, text="📋 Calcolo Ready (da Forecast):",
+                 font=('Arial', 11, 'bold'), foreground='#673AB7').grid(row=row, column=0, columnspan=2, sticky='w', pady=5)
+        row += 1
+
+        # Tipo proiezione (Giorno/Settimana)
+        ttk.Label(form, text="Proiezione:").grid(row=row, column=0, sticky='w', pady=5)
+        proiezione_frame = ttk.Frame(form)
+        proiezione_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        self.vars['proiezione_ready'] = tk.StringVar(value='giorno')
+        ttk.Radiobutton(proiezione_frame, text="📅 Giorno", variable=self.vars['proiezione_ready'],
+                       value='giorno').pack(side='left', padx=5)
+        ttk.Radiobutton(proiezione_frame, text="📊 Settimana", variable=self.vars['proiezione_ready'],
+                       value='settimana').pack(side='left', padx=5)
+        row += 1
+
+        # Seleziona Data Forecast
+        ttk.Label(form, text="Data Inizio:").grid(row=row, column=0, sticky='w', pady=5)
+        data_frame = ttk.Frame(form)
+        data_frame.grid(row=row, column=1, sticky='w', pady=5)
+
+        from tkcalendar import DateEntry
+        from datetime import datetime as dt
+        self.vars['data_forecast'] = tk.StringVar(value=dt.now().strftime('%Y-%m-%d'))
+        self.data_forecast_entry = DateEntry(data_frame, textvariable=self.vars['data_forecast'],
+                                             width=12, date_pattern='yyyy-mm-dd')
+        self.data_forecast_entry.pack(side='left', padx=5)
+
+        ttk.Button(data_frame, text="Carica Forecast",
+                  command=self.load_forecast_ready).pack(side='left', padx=5)
+        ttk.Label(data_frame, text="  (per settimana: 7 giorni dalla data)",
+                 foreground='#888', font=('Arial', 8)).pack(side='left', padx=5)
+        row += 1
+
+        # Tabella Ready
+        ready_table_frame = ttk.LabelFrame(form, text="Dettaglio Ready per Fascia", padding=5)
+        ready_table_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=5)
+
+        # Scrollbar per tabella
+        ready_scroll = ttk.Scrollbar(ready_table_frame, orient='vertical')
+        ready_scroll.pack(side='right', fill='y')
+
+        # Treeview per ready (con colonna Giorno per vista settimanale)
+        ready_cols = ('Giorno', 'Fascia', 'Volume', 'Ag.Erlang', 'Ag.Teorici', 'Ag.Ready', 'Min.Ready')
+        self.ready_tree = ttk.Treeview(ready_table_frame, columns=ready_cols, show='headings',
+                                       yscrollcommand=ready_scroll.set, height=10)
+        ready_scroll.config(command=self.ready_tree.yview)
+
+        column_widths = {'Giorno': 90, 'Fascia': 60, 'Volume': 70, 'Ag.Erlang': 80,
+                        'Ag.Teorici': 80, 'Ag.Ready': 70, 'Min.Ready': 80}
+        for col in ready_cols:
+            self.ready_tree.heading(col, text=col)
+            self.ready_tree.column(col, width=column_widths.get(col, 70), anchor='center')
+
+        self.ready_tree.pack(fill='both', expand=True)
+        row += 1
+
+        # Ready Summary
+        ready_summary_frame = ttk.Frame(form)
+        ready_summary_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=5)
+
+        self.ready_summary_title = ttk.Label(ready_summary_frame, text="Ready %:",
+                 font=('Arial', 10, 'bold'))
+        self.ready_summary_title.pack(side='left', padx=5)
+        self.ready_pct_label = ttk.Label(ready_summary_frame, text="--",
+                                        font=('Arial', 12, 'bold'), foreground='#673AB7')
+        self.ready_pct_label.pack(side='left', padx=5)
+
+        ttk.Label(ready_summary_frame, text="Ore Ready:",
+                 font=('Arial', 10)).pack(side='left', padx=(20, 5))
+        self.ore_ready_label = ttk.Label(ready_summary_frame, text="--",
+                                        font=('Arial', 10, 'bold'), foreground='#FF5722')
+        self.ore_ready_label.pack(side='left', padx=5)
+        row += 1
+
+        ttk.Separator(form, orient='horizontal').grid(row=row, column=0, columnspan=2, sticky='ew', pady=10)
+        row += 1
+
+        # === SEZIONE SERVICE LEVEL (Voice/Email) ===
+        ttk.Label(form, text="📈 Service Level (per Voice/Email)",
+                 font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(15, 5))
+        row += 1
+
+        # SL Target
+        ttk.Label(form, text="Service Level Target (%):").grid(row=row, column=0, sticky='w', pady=5)
+        sl_frame = ttk.Frame(form)
+        sl_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['service_level_target'] = tk.DoubleVar(value=80.0)
+        self.sl_target_entry = ttk.Entry(sl_frame, textvariable=self.vars['service_level_target'], width=15)
+        self.sl_target_entry.pack(side='left')
+        self.sl_target_label = ttk.Label(sl_frame, text="  (% chiamate entro target - es: 80%)",
+                                        foreground='#666', font=('Arial', 9))
+        self.sl_target_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['service_level_target'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # SL Seconds
+        ttk.Label(form, text="Service Level Seconds:").grid(row=row, column=0, sticky='w', pady=5)
+        sls_frame = ttk.Frame(form)
+        sls_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['service_level_seconds'] = tk.IntVar(value=20)
+        self.sl_seconds_entry = ttk.Entry(sls_frame, textvariable=self.vars['service_level_seconds'], width=15)
+        self.sl_seconds_entry.pack(side='left')
+        self.sl_seconds_label = ttk.Label(sls_frame, text="  (Secondi target risposta - es: 20)",
+                                         foreground='#666', font=('Arial', 9))
+        self.sl_seconds_label.pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['service_level_seconds'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # === SEZIONE ASA (Chat) ===
+        ttk.Label(form, text="💬 ASA - Average Speed to Answer (per Chat)",
+                 font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(15, 5))
+        row += 1
+
+        # ASA Target
+        ttk.Label(form, text="ASA Target (secondi):").grid(row=row, column=0, sticky='w', pady=5)
+        asa_frame = ttk.Frame(form)
+        asa_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['asa_target_seconds'] = tk.IntVar(value=60)
+        self.asa_entry = ttk.Entry(asa_frame, textvariable=self.vars['asa_target_seconds'], width=15)
+        self.asa_entry.pack(side='left')
+        self.asa_label = ttk.Label(asa_frame,
+                                   text="  (Tempo medio prima risposta - es: 60s)",
+                                   foreground='#666', font=('Arial', 9))
+        self.asa_label.pack(side='left', padx=5)
+        row += 1
+
+        # === ALTRE IMPOSTAZIONI ===
+        ttk.Label(form, text="🔧 Altre Impostazioni",
+                 font=('Arial', 11, 'bold')).grid(row=row, column=0, columnspan=2, sticky='w', pady=(15, 5))
+        row += 1
+
+        # Interval
+        ttk.Label(form, text="Intervallo calcolo (min):").grid(row=row, column=0, sticky='w', pady=5)
+        int_frame = ttk.Frame(form)
+        int_frame.grid(row=row, column=1, sticky='w', pady=5)
+        self.vars['interval_minutes'] = tk.IntVar(value=30)
+        interval_entry = ttk.Entry(int_frame, textvariable=self.vars['interval_minutes'], width=15)
+        interval_entry.pack(side='left')
+        ttk.Label(int_frame, text="  (Tipicamente 15 o 30 minuti)",
+                 foreground='#666', font=('Arial', 9)).pack(side='left', padx=5)
+
+        # Bind per ricalcolo
+        self.vars['interval_minutes'].trace_add('write', lambda *args: self.calculate_productivity())
+        row += 1
+
+        # Note
+        ttk.Label(form, text="Note:").grid(row=row, column=0, sticky='nw', pady=5)
+        self.vars['note'] = tk.StringVar()
+        note_entry = ttk.Entry(form, textvariable=self.vars['note'], width=40)
+        note_entry.grid(row=row, column=1, sticky='w', pady=5)
+        row += 1
+
+        # === INFO BOX ===
+        info_frame = ttk.LabelFrame(form, text="ℹ️ Guida Rapida", padding=10)
+        info_frame.grid(row=row, column=0, columnspan=2, sticky='ew', pady=20)
+
+        info_text = (
+            "VOICE: AHT tipico 180-300s, SL 80% in 20s, Concurrency = 1\n"
+            "CHAT: AHT tipico 120-240s, ASA target 60s, Concurrency 2-4 (chat simultanee)\n"
+            "BO: AHT tipico 300-600s, Nessun SL (lavoro senza attesa), Concurrency = 1\n\n"
+            "Shrinkage tipico: 25-35% (include pause, formazione, riunioni)\n"
+            "Available: calcolato da Erlang C per Voice/Chat, 0% per BO"
+        )
+        ttk.Label(info_frame, text=info_text, justify='left',
+                 font=('Arial', 9), foreground='#555').pack()
+        row += 1
+
+        # === PULSANTI ===
+        button_frame = ttk.Frame(form)
+        button_frame.grid(row=row, column=0, columnspan=2, pady=20)
+
+        ttk.Button(button_frame, text="💾 Salva", command=self.save,
+                  width=20).pack(side='left', padx=10)
+        ttk.Button(button_frame, text="❌ Annulla", command=self.destroy,
+                  width=20).pack(side='left', padx=10)
+
+        # Variabile per memorizzare ultimo Ready % calcolato
+        self.last_ready_pct = 0.0
+
+        # Configura stato iniziale campi
+        self.on_canale_change()
+        self.on_available_mode_change()
+
+        # Calcola produttività iniziale
+        self.calculate_productivity()
+
+    def calculate_productivity(self):
+        """Calcola parametri usando Erlang C in tempo reale"""
+        try:
+            from utils.erlang_calculator import ErlangCalculator
+
+            # Ottieni valori correnti
+            aht = self.vars['aht_seconds'].get()
+            shrinkage = self.vars['shrinkage'].get() / 100.0
+            sl_target = self.vars['service_level_target'].get() / 100.0
+            sl_seconds = self.vars['service_level_seconds'].get()
+            interval_minutes = self.vars['interval_minutes'].get()
+            volume = self.vars['volume_riferimento'].get()
+            tipo_canale = self.vars['tipo_canale'].get()
+            available_mode = self.vars['available_mode'].get()
+
+            # Valida valori
+            if aht <= 0 or interval_minutes <= 0 or volume <= 0:
+                self._reset_calculated_fields()
+                return
+
+            if not (0 < shrinkage < 1):
+                self._reset_calculated_fields()
+                return
+
+            # === DETERMINA AVAILABLE IN BASE ALLA MODALITÀ ===
+            calculator = ErlangCalculator()
+
+            if available_mode == 'manuale':
+                # Usa valore manuale
+                available = self.vars['available_manuale'].get() / 100.0
+                agenti = 0  # Non calcolato in modalità manuale
+                self.available_label.config(text="")
+
+            elif available_mode == 'ready':
+                # Usa valore da Ready
+                available = self.last_ready_pct / 100.0
+                agenti = 0  # Non calcolato in modalità ready
+                self.available_label.config(
+                    text=f"{self.last_ready_pct:.1f}%",
+                    foreground='#673AB7'
+                )
+
+            else:  # erlang
+                # Calcola con Erlang C
+                if tipo_canale == 'BO':
+                    # BO: Nessun Service Level, Available = 0
+                    interval_seconds = interval_minutes * 60
+                    agenti = int(volume * aht / interval_seconds) + 1
+                    available = 0.0
+                else:
+                    # Voice/Chat: Usa Erlang C
+                    if not (0 < sl_target <= 1):
+                        self._reset_calculated_fields()
+                        return
+
+                    traffic = calculator.calculate_traffic_intensity(volume, aht, interval_minutes)
+                    agenti = calculator.required_agents(
+                        volume, aht, sl_target, sl_seconds, interval_minutes
+                    )
+                    available = calculator.calculate_occupancy(traffic, agenti)
+
+                self.available_label.config(
+                    text=f"{available * 100:.1f}%",
+                    foreground='#9C27B0'
+                )
+
+            # === CALCOLO OCCUPANCY ===
+            occupancy = 1 - available
+            self.occupancy_label.config(
+                text=f"{occupancy * 100:.1f}%",
+                foreground='#673AB7'
+            )
+
+            # === CALCOLO MINUTO UTILE ===
+            # Formula: 60 × (1 - shrinkage) × occupancy
+            minuto_utile = 60 * (1 - shrinkage) * occupancy
+
+            # === CALCOLO PRODUTTIVITÀ ===
+            # Formula: Minuto Utile × intervallo / AHT
+            if aht > 0:
+                produttivita = (minuto_utile * interval_minutes) / aht
+            else:
+                produttivita = 0
+
+            # === AGGIORNA LABELS ===
+            if available_mode == 'erlang' and agenti > 0:
+                self.agenti_label.config(
+                    text=f"{agenti} agenti",
+                    foreground='#FF5722'
+                )
+            else:
+                self.agenti_label.config(text="--", foreground='#999')
+
+            self.minuto_utile_label.config(
+                text=f"{minuto_utile:.2f} sec",
+                foreground='#FF9800'
+            )
+
+            self.productivity_label.config(
+                text=f"{produttivita:.2f} chiam.",
+                foreground='#4CAF50'
+            )
+
+            # Aggiorna formula
+            formula_text = f"({minuto_utile:.2f} × {interval_minutes}) / {aht} = {produttivita:.2f}"
+            self.productivity_formula_label.config(text=formula_text)
+
+        except (tk.TclError, ValueError, ZeroDivisionError) as e:
+            # Valore non valido durante digitazione
+            self._reset_calculated_fields()
+
+    def _reset_calculated_fields(self):
+        """Reset dei campi calcolati"""
+        self.available_label.config(text="--", foreground='#9C27B0')
+        self.occupancy_label.config(text="--", foreground='#673AB7')
+        self.agenti_label.config(text="--", foreground='#FF5722')
+        self.minuto_utile_label.config(text="--", foreground='#FF9800')
+        self.productivity_label.config(text="--", foreground='#4CAF50')
+        self.productivity_formula_label.config(text="Formula: Minuto Utile × Intervallo / AHT")
+
+    def on_available_mode_change(self):
+        """Gestisce il cambio di modalità Available"""
+        mode = self.vars['available_mode'].get()
+
+        if mode == 'manuale':
+            # Modalità manuale: abilita entry, nascondi label calcolato
+            self.available_entry.config(state='normal')
+            self.available_label.config(text="")
+            self.available_info_label.config(text="(inserisci valore %)")
+        elif mode == 'ready':
+            # Modalità da Ready: disabilita entry, mostra valore da Ready
+            self.available_entry.config(state='disabled')
+            if self.last_ready_pct > 0:
+                self.available_label.config(
+                    text=f"{self.last_ready_pct:.1f}%",
+                    foreground='#673AB7'
+                )
+            else:
+                self.available_label.config(text="(calcola Ready prima)", foreground='#FF9800')
+            self.available_info_label.config(text="(da calcolo Ready)")
+        else:  # erlang
+            # Modalità Erlang C: disabilita entry, mostra calcolo
+            self.available_entry.config(state='disabled')
+            self.available_info_label.config(text="(da Erlang C)")
+
+        # Ricalcola produttività con nuova modalità
+        self.calculate_productivity()
+
+    def load_forecast_ready(self):
+        """Carica forecast e calcola Ready per la data selezionata (giorno o settimana)"""
+        # Pulisci tabella ready
+        for item in self.ready_tree.get_children():
+            self.ready_tree.delete(item)
+
+        # Reset labels
+        self.ready_pct_label.config(text="--")
+        self.ore_ready_label.config(text="--")
+
+        try:
+            # Ottieni parametri correnti
+            skill = self.vars['skill'].get().strip()
+            if not skill:
+                messagebox.showwarning("Attenzione", "Seleziona prima uno Skill")
+                return
+
+            data_inizio = self.vars['data_forecast'].get()
+            proiezione = self.vars['proiezione_ready'].get()
+            aht = self.vars['aht_seconds'].get()
+            shrinkage = self.vars['shrinkage'].get() / 100.0
+            sl_target = self.vars['service_level_target'].get() / 100.0
+            sl_seconds = self.vars['service_level_seconds'].get()
+            interval_minutes = self.vars['interval_minutes'].get()
+            tipo_canale = self.vars['tipo_canale'].get()
+
+            # Valida parametri
+            if aht <= 0 or interval_minutes <= 0:
+                messagebox.showerror("Errore", "AHT e Intervallo devono essere maggiori di 0")
+                return
+
+            # Calcola date da caricare
+            from datetime import datetime as dt, timedelta
+            dt_inizio = dt.strptime(data_inizio, '%Y-%m-%d')
+
+            if proiezione == 'settimana':
+                date_da_caricare = [(dt_inizio + timedelta(days=i)).strftime('%Y-%m-%d')
+                                   for i in range(7)]
+            else:
+                date_da_caricare = [data_inizio]
+
+            # Carica forecast dal database
+            self.db_manager.connect()
+
+            all_forecast_data = []
+            for data in date_da_caricare:
+                query = """
+                    SELECT Fascia_Oraria, Volumi_Attesi
+                    FROM Forecast
+                    WHERE date(Fascia_Oraria) = date(?)
+                      AND Skill = ?
+                    ORDER BY Fascia_Oraria
+                """
+                forecast_data = self.db_manager.execute_query(query, (data, skill))
+                if forecast_data:
+                    all_forecast_data.extend([(data, fascia, vol) for fascia, vol in forecast_data])
+
+            self.db_manager.close()
+
+            if not all_forecast_data or len(all_forecast_data) == 0:
+                periodo = "settimana" if proiezione == 'settimana' else "giorno"
+                messagebox.showinfo("Info",
+                    f"Nessun dato forecast trovato per skill '{skill}' nel {periodo} selezionato")
+                return
+
+            # === CALCOLO READY ===
+            from utils.erlang_calculator import ErlangCalculator
+            calculator = ErlangCalculator()
+
+            total_minuti_ready = 0.0
+            total_minuti_erlang = 0.0
+
+            # Raggruppamento per giorno (per vista settimanale)
+            ready_per_giorno = {}
+
+            # Determina l'intervallo reale dal forecast (15, 30 o 60 minuti)
+            forecast_interval_minutes = None
+            if len(all_forecast_data) >= 2:
+                # Calcola differenza tra prime due fasce
+                try:
+                    fascia1_str = all_forecast_data[0][1]
+                    fascia2_str = all_forecast_data[1][1]
+
+                    if isinstance(fascia1_str, str):
+                        fascia1_dt = dt.strptime(fascia1_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia1_dt = fascia1_str
+
+                    if isinstance(fascia2_str, str):
+                        fascia2_dt = dt.strptime(fascia2_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia2_dt = fascia2_str
+
+                    diff = (fascia2_dt - fascia1_dt).total_seconds() / 60
+                    forecast_interval_minutes = int(diff)
+                    print(f"[DEBUG] Intervallo forecast rilevato: {forecast_interval_minutes} minuti")
+                except Exception as e:
+                    print(f"[DEBUG] Errore rilevamento intervallo: {e}")
+                    forecast_interval_minutes = interval_minutes
+            else:
+                forecast_interval_minutes = interval_minutes
+
+            for data_str, fascia_str, volume in all_forecast_data:
+                if volume is None or volume <= 0:
+                    continue
+
+                # Converti fascia a stringa leggibile
+                try:
+                    if isinstance(fascia_str, str):
+                        fascia_dt = dt.strptime(fascia_str, '%Y-%m-%d %H:%M:%S')
+                    else:
+                        fascia_dt = fascia_str
+                    fascia_display = fascia_dt.strftime('%H:%M')
+                    giorno_display = fascia_dt.strftime('%a %d/%m')
+                except:
+                    fascia_display = str(fascia_str)[:5]
+                    giorno_display = data_str
+
+                # === CALCOLO AGENTI ERLANG ===
+                if tipo_canale == 'BO':
+                    interval_seconds = forecast_interval_minutes * 60
+                    agenti_erlang = int(volume * aht / interval_seconds) + 1
+                else:
+                    agenti_erlang = calculator.required_agents(
+                        volume, aht, sl_target, sl_seconds, forecast_interval_minutes
+                    )
+
+                # === CALCOLO AGENTI TEORICI ===
+                # Formula: (Volume × AHT) / Secondi_Disponibili_Fascia
+                interval_seconds = forecast_interval_minutes * 60
+                agenti_teorici_exact = volume * aht / interval_seconds
+                agenti_teorici = int(agenti_teorici_exact)
+
+                # === CALCOLO READY ===
+                agenti_ready = agenti_erlang - agenti_teorici
+                minuti_ready = agenti_ready * forecast_interval_minutes
+
+                # Accumula totali
+                total_minuti_ready += minuti_ready
+                total_minuti_erlang += agenti_erlang * forecast_interval_minutes
+
+                # Accumula per giorno
+                if data_str not in ready_per_giorno:
+                    ready_per_giorno[data_str] = {'minuti_ready': 0, 'minuti_erlang': 0}
+                ready_per_giorno[data_str]['minuti_ready'] += minuti_ready
+                ready_per_giorno[data_str]['minuti_erlang'] += agenti_erlang * forecast_interval_minutes
+
+                # Inserisci in tabella
+                values = (
+                    giorno_display if proiezione == 'settimana' else '',
+                    fascia_display,
+                    int(volume),
+                    agenti_erlang,
+                    agenti_teorici,
+                    agenti_ready,
+                    f"{minuti_ready:.1f}"
+                )
+
+                # Colora riga in base a ready
+                if agenti_ready > 0:
+                    tag = 'ready_pos'
+                elif agenti_ready == 0:
+                    tag = 'ready_zero'
+                else:
+                    tag = 'ready_neg'
+
+                self.ready_tree.insert('', 'end', values=values, tags=(tag,))
+
+            # Configura colori
+            self.ready_tree.tag_configure('ready_pos', background='#E8F5E9')
+            self.ready_tree.tag_configure('ready_zero', background='#FFF9C4')
+            self.ready_tree.tag_configure('ready_neg', background='#FFEBEE')
+
+            # === CALCOLO PERCENTUALE READY ===
+            ore_ready = total_minuti_ready / 60.0
+            ore_erlang = total_minuti_erlang / 60.0
+
+            if ore_erlang > 0:
+                ready_pct = (ore_ready / ore_erlang) * 100
+            else:
+                ready_pct = 0
+
+            # Salva Ready % per uso in Available
+            self.last_ready_pct = ready_pct
+
+            # Aggiorna labels summary
+            periodo_label = "Settimanale" if proiezione == 'settimana' else "Giornaliero"
+            self.ready_summary_title.config(text=f"Ready % {periodo_label}:")
+
+            self.ready_pct_label.config(
+                text=f"{ready_pct:.1f}%",
+                foreground='#673AB7' if ready_pct >= 10 else '#FF5722'
+            )
+
+            self.ore_ready_label.config(
+                text=f"{ore_ready:.2f} h (su {ore_erlang:.2f} h Erlang)",
+                foreground='#FF5722'
+            )
+
+            # Forza aggiornamento UI
+            self.ready_tree.update_idletasks()
+
+            # Se la modalità Available è "ready", aggiorna il valore
+            if self.vars['available_mode'].get() == 'ready':
+                self.available_label.config(
+                    text=f"{ready_pct:.1f}%",
+                    foreground='#673AB7'
+                )
+                # Ricalcola produttività con nuovo Ready %
+                self.calculate_productivity()
+
+            # Messaggio riepilogativo
+            n_giorni = len(ready_per_giorno)
+            msg = f"Ready calcolato per {len(all_forecast_data)} fasce orarie su {n_giorni} giorni.\n"
+            msg += f"Intervallo forecast: {forecast_interval_minutes} minuti\n\n"
+            msg += f"Ready {periodo_label.lower()}: {ready_pct:.1f}%\n"
+            msg += f"Ore Ready: {ore_ready:.2f} h\n\n"
+
+            if proiezione == 'settimana' and n_giorni > 1:
+                msg += "Dettaglio per giorno:\n"
+                for data, stats in sorted(ready_per_giorno.items()):
+                    ore_r = stats['minuti_ready'] / 60.0
+                    ore_e = stats['minuti_erlang'] / 60.0
+                    pct = (ore_r / ore_e * 100) if ore_e > 0 else 0
+                    dt_day = dt.strptime(data, '%Y-%m-%d')
+                    giorno = dt_day.strftime('%a %d/%m')
+                    msg += f"  {giorno}: {pct:.1f}% ({ore_r:.2f} h)\n"
+
+            messagebox.showinfo("Calcolo Completato", msg)
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore calcolo Ready:\n{e}")
+            import traceback
+            traceback.print_exc()
+
+    def on_canale_change(self):
+        """Gestisce cambio tipo canale"""
+        canale = self.vars['tipo_canale'].get()
+
+        if canale == 'Voice':
+            # Voice: concurrency = 1, usa SL, nascondi ASA
+            self.vars['concurrency'].set(1)
+            self.concurrency_entry.config(state='disabled')
+            self.concurrency_label.config(foreground='#CCC')
+
+            self.sl_target_entry.config(state='normal')
+            self.sl_seconds_entry.config(state='normal')
+            self.sl_target_label.config(foreground='#666')
+            self.sl_seconds_label.config(foreground='#666')
+
+            self.asa_entry.config(state='disabled')
+            self.asa_label.config(foreground='#CCC')
+
+        elif canale == 'Chat':
+            # Chat: concurrency > 1, usa ASA, nascondi SL tradizionale
+            if self.vars['concurrency'].get() == 1:
+                self.vars['concurrency'].set(3)  # Default per chat
+            self.concurrency_entry.config(state='normal')
+            self.concurrency_label.config(foreground='#666')
+
+            self.sl_target_entry.config(state='disabled')
+            self.sl_seconds_entry.config(state='disabled')
+            self.sl_target_label.config(foreground='#CCC')
+            self.sl_seconds_label.config(foreground='#CCC')
+
+            self.asa_entry.config(state='normal')
+            self.asa_label.config(foreground='#666')
+
+        else:  # BO (Back Office)
+            # BO: concurrency = 1, nessun SL o ASA (lavoro senza attesa)
+            self.vars['concurrency'].set(1)
+            self.concurrency_entry.config(state='disabled')
+            self.concurrency_label.config(foreground='#CCC')
+
+            self.sl_target_entry.config(state='disabled')
+            self.sl_seconds_entry.config(state='disabled')
+            self.sl_target_label.config(foreground='#CCC')
+            self.sl_seconds_label.config(foreground='#CCC')
+
+            self.asa_entry.config(state='disabled')
+            self.asa_label.config(foreground='#CCC')
+
+    def _load_skills(self):
+        """Carica elenco skills dal database (da Skills, Erlang_Config e Forecast)"""
+        skills_set = set()
+
+        try:
+            self.db_manager.connect()
+
+            # 1. Prova a caricare dalla tabella Skills
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Codice_Skill
+                    FROM Skills
+                    ORDER BY Codice_Skill
+                """)
+
+                if result:
+                    skills_from_table = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_table)
+                    print(f"[DEBUG] Caricati {len(skills_from_table)} skills dalla tabella Skills")
+                else:
+                    print("[DEBUG] Tabella Skills vuota")
+            except Exception as e:
+                print(f"[DEBUG] Tabella Skills non disponibile: {e}")
+
+            # 2. Carica anche gli skills già configurati in Erlang_Config
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Skill
+                    FROM Erlang_Config
+                    ORDER BY Skill
+                """)
+
+                if result:
+                    skills_from_erlang = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_erlang)
+                    print(f"[DEBUG] Caricati {len(skills_from_erlang)} skills da Erlang_Config")
+            except Exception as e:
+                print(f"[DEBUG] Nessuno skill in Erlang_Config: {e}")
+
+            # 3. Carica anche dalla tabella Forecast (se esiste)
+            try:
+                result = self.db_manager.execute_query("""
+                    SELECT DISTINCT Skill
+                    FROM Forecast
+                    WHERE Skill IS NOT NULL AND Skill != ''
+                    ORDER BY Skill
+                """)
+
+                if result:
+                    skills_from_forecast = [row[0] for row in result if row[0]]
+                    skills_set.update(skills_from_forecast)
+                    print(f"[DEBUG] Caricati {len(skills_from_forecast)} skills dalla tabella Forecast")
+            except Exception as e:
+                print(f"[DEBUG] Tabella Forecast non disponibile: {e}")
+
+            self.db_manager.close()
+
+            # Converti set in lista ordinata
+            self.available_skills = sorted(list(skills_set))
+            print(f"[DEBUG] Totale skills disponibili: {len(self.available_skills)} - {self.available_skills}")
+
+            # Se nessuno skill trovato, aggiungi un messaggio di avviso
+            if not self.available_skills:
+                print("[AVVISO] Nessuno skill trovato nel database. Le tabelle potrebbero essere vuote.")
+                print("         L'utente può comunque digitare manualmente lo skill nella combo box.")
+
+        except Exception as e:
+            self.available_skills = []
+            print(f"[ERRORE] Impossibile caricare skills: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def load_config(self):
+        """Carica configurazione esistente"""
+        try:
+            self.db_manager.connect()
+
+            result = self.db_manager.execute_query("""
+                SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
+                       Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                FROM Erlang_Config
+                WHERE ID = ?
+            """, (self.config_id,))
+
+            if result and len(result) > 0:
+                cfg = result[0]
+                self.vars['skill'].set(cfg[0] or '')
+                self.vars['tipo_canale'].set(cfg[1] or 'Voice')
+                self.vars['aht_seconds'].set(cfg[2] or 180)
+                self.vars['concurrency'].set(cfg[3] or 1)
+                self.vars['shrinkage'].set((cfg[5] * 100) if cfg[5] else 30.0)
+                self.vars['service_level_target'].set((cfg[6] * 100) if cfg[6] else 80.0)
+                self.vars['service_level_seconds'].set(cfg[7] or 20)
+                self.vars['asa_target_seconds'].set(cfg[8] or 60)
+                # Occupancy non più caricato - viene calcolato da Erlang C
+                self.vars['interval_minutes'].set(cfg[10] or 30)
+                self.vars['note'].set(cfg[11] or '')
+
+                self.on_canale_change()
+                self.calculate_productivity()  # Ricalcola produttività con i valori caricati
+
+            self.db_manager.close()
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore caricamento configurazione:\n{e}")
+
+    def save(self):
+        """Salva configurazione nel database"""
+        # Validazioni
+        skill = self.vars['skill'].get().strip()
+        if not skill:
+            messagebox.showerror("Errore", "Skill è obbligatorio")
+            return
+
+        try:
+            aht = self.vars['aht_seconds'].get()
+            if aht <= 0:
+                messagebox.showerror("Errore", "AHT deve essere maggiore di 0")
+                return
+
+            concurrency = self.vars['concurrency'].get()
+            if concurrency < 1:
+                messagebox.showerror("Errore", "Concurrency deve essere almeno 1")
+                return
+
+            shrinkage = self.vars['shrinkage'].get() / 100.0
+            if not (0 <= shrinkage < 1):
+                messagebox.showerror("Errore", "Shrinkage deve essere tra 0 e 99%")
+                return
+
+            sl_target = self.vars['service_level_target'].get() / 100.0
+            # Occupancy non più salvato - viene calcolato dinamicamente da Erlang C
+            occ_target = None
+
+        except tk.TclError:
+            messagebox.showerror("Errore", "Valori numerici non validi")
+            return
+
+        # Salva nel database
+        try:
+            self.db_manager.connect()
+
+            if self.mode == 'add':
+                # Verifica se skill già esiste
+                existing = self.db_manager.execute_query(
+                    "SELECT ID FROM Erlang_Config WHERE Skill = ?",
+                    (skill,)
+                )
+                if existing:
+                    messagebox.showerror("Errore", f"Configurazione per skill '{skill}' già esistente")
+                    self.db_manager.close()
+                    return
+
+                # Insert
+                query = """
+                    INSERT INTO Erlang_Config (
+                        Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
+                        Shrinkage, Service_Level_Target, Service_Level_Seconds,
+                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """
+                params = (
+                    skill,
+                    self.vars['tipo_canale'].get(),
+                    self.vars['aht_seconds'].get(),
+                    self.vars['concurrency'].get(),
+                    0,  # Tempo_Pausa_Minuti
+                    shrinkage,
+                    sl_target,
+                    self.vars['service_level_seconds'].get(),
+                    self.vars['asa_target_seconds'].get(),
+                    occ_target,
+                    self.vars['interval_minutes'].get(),
+                    self.vars['note'].get() or None
+                )
+                self.db_manager.execute_update(query, params)
+                messagebox.showinfo("Successo", f"Configurazione '{skill}' creata")
+
+            else:  # mode == 'edit'
+                # Update
+                query = """
+                    UPDATE Erlang_Config
+                    SET Tipo_Canale = ?, AHT_Seconds = ?, Concurrency = ?,
+                        Shrinkage = ?, Service_Level_Target = ?, Service_Level_Seconds = ?,
+                        ASA_Target_Seconds = ?, Occupancy_Target = ?, Interval_Minutes = ?, Note = ?
+                    WHERE ID = ?
+                """
+                params = (
+                    self.vars['tipo_canale'].get(),
+                    self.vars['aht_seconds'].get(),
+                    self.vars['concurrency'].get(),
+                    shrinkage,
+                    sl_target,
+                    self.vars['service_level_seconds'].get(),
+                    self.vars['asa_target_seconds'].get(),
+                    occ_target,
+                    self.vars['interval_minutes'].get(),
+                    self.vars['note'].get() or None,
+                    self.config_id
+                )
+                self.db_manager.execute_update(query, params)
+                messagebox.showinfo("Successo", f"Configurazione '{skill}' aggiornata")
+
+            self.db_manager.close()
+            self.destroy()
+
+        except Exception as e:
+            messagebox.showerror("Errore", f"Errore salvataggio:\n{e}")
+            import traceback
+            traceback.print_exc()
