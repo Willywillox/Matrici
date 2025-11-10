@@ -174,6 +174,7 @@ class ExcelImporter:
                     'Ora_Inizio_Turno_Spezzato': self.parse_time(row.get('Ora_Inizio_Turno_Spezzato')),
                     'Ora_Fine_Turno_Spezzato': self.parse_time(row.get('Ora_Fine_Turno_Spezzato')),
                     'Etichetta_Skill': str(row.get('Etichetta_Skill', '')).strip() if pd.notna(row.get('Etichetta_Skill')) else None,
+                    'Microskill': str(row.get('Microskill', '')).strip() if pd.notna(row.get('Microskill')) else '',
                     'Postazione': str(row.get('Postazione', '')).strip() if pd.notna(row.get('Postazione')) else None,
                 }
 

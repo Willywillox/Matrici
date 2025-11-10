@@ -77,6 +77,7 @@ class SkillsImporter:
 
                     descrizione = str(row.get('Descrizione', '')).strip() if pd.notna(row.get('Descrizione')) else None
                     produttivita = float(row.get('Produttivita_Default', 1.0)) if pd.notna(row.get('Produttivita_Default')) else 1.0
+                    microskill = str(row.get('Microskill', '')).strip() if pd.notna(row.get('Microskill')) else ''
 
                     # Verifica se skill esiste
                     existing = self.db_manager.execute_query(
@@ -88,20 +89,22 @@ class SkillsImporter:
                         # Update
                         query = """
                             UPDATE Skills
-                            SET Descrizione = ?, Produttivita_Default = ?
+                            SET Descrizione = ?, Produttivita_Default = ?, Microskill = ?
                             WHERE Codice_Skill = ?
                         """
-                        self.db_manager.execute_update(query, (descrizione, produttivita, codice))
-                        print(f"  [UPD] Riga {row_num}: '{codice}' - Aggiornata")
+                        self.db_manager.execute_update(query, (descrizione, produttivita, microskill, codice))
+                        microskill_info = f" - Microskill: {microskill}" if microskill else ""
+                        print(f"  [UPD] Riga {row_num}: '{codice}'{microskill_info} - Aggiornata")
                         self.updated += 1
                     else:
                         # Insert
                         query = """
-                            INSERT INTO Skills (Codice_Skill, Descrizione, Produttivita_Default)
-                            VALUES (?, ?, ?)
+                            INSERT INTO Skills (Codice_Skill, Descrizione, Produttivita_Default, Microskill)
+                            VALUES (?, ?, ?, ?)
                         """
-                        self.db_manager.execute_update(query, (codice, descrizione, produttivita))
-                        print(f"  [OK] Riga {row_num}: '{codice}' - Importata")
+                        self.db_manager.execute_update(query, (codice, descrizione, produttivita, microskill))
+                        microskill_info = f" - Microskill: {microskill}" if microskill else ""
+                        print(f"  [OK] Riga {row_num}: '{codice}'{microskill_info} - Importata")
                         self.imported += 1
 
                 except Exception as e:

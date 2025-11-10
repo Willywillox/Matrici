@@ -178,7 +178,7 @@ class TemplatesTab(ttk.Frame):
                 'icon': '🎯',
                 'description': 'Configurazione skill/code del contact center',
                 'command': self.genera_template_skills,
-                'columns': 'Codice_Skill, Descrizione, Canale, Priorita'
+                'columns': 'Codice_Skill, Descrizione, Canale, Priorita, Microskill'
             },
             {
                 'name': 'Turni',
@@ -323,13 +323,15 @@ class TemplatesTab(ttk.Frame):
             # Dati di esempio
             data = [
                 {'Codice_Skill': 'CUSTOMER_CARE', 'Descrizione': 'Customer Care Generale',
-                 'Canale': 'Voice', 'Priorita': 1, 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Premium', 'Note': ''},
+                {'Codice_Skill': 'CUSTOMER_CARE', 'Descrizione': 'Customer Care Generale',
+                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Basic', 'Note': ''},
                 {'Codice_Skill': 'TECHNICAL_SUPPORT', 'Descrizione': 'Supporto Tecnico',
-                 'Canale': 'Voice', 'Priorita': 2, 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 2, 'Microskill': 'Advanced', 'Note': ''},
                 {'Codice_Skill': 'BACK_OFFICE', 'Descrizione': 'Back Office',
-                 'Canale': 'Email', 'Priorita': 3, 'Note': ''},
+                 'Canale': 'Email', 'Priorita': 3, 'Microskill': '', 'Note': ''},
                 {'Codice_Skill': 'SALES', 'Descrizione': 'Vendite',
-                 'Canale': 'Voice', 'Priorita': 4, 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 4, 'Microskill': '', 'Note': ''},
             ]
 
             df = pd.DataFrame(data)

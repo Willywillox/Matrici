@@ -78,6 +78,7 @@ def crea_template_operatori(output_file='template_import_operatori.xlsx'):
 
         # === SKILL E POSTAZIONE ===
         'Etichetta_Skill': ['CUSTOMER_CARE', 'BACK_OFFICE', 'TECHNICAL_SUPPORT', ''],
+        'Microskill': ['Premium', '', 'Advanced', ''],
         'Postazione': ['Sede', 'Smart Working', 'Sede', ''],
     }
 
@@ -185,6 +186,9 @@ def crea_template_operatori(output_file='template_import_operatori.xlsx'):
                 '',
                 'SKILL E POSTAZIONE:',
                 '• Etichetta_Skill: CUSTOMER_CARE, BACK_OFFICE, TECHNICAL_SUPPORT, ecc.',
+                '• Microskill: Sottocategoria skill (es: Premium, Basic, Advanced) - opzionale',
+                '  Il microskill è trasversale: un operatore con microskill "Premium"',
+                '  può lavorare su qualsiasi skill che richiede "Premium"',
                 '• Postazione: Sede, Smart Working, Trasferta, Permesso, Assente',
                 '',
                 '=== ESEMPI FORNITI ===',
@@ -196,6 +200,7 @@ def crea_template_operatori(output_file='template_import_operatori.xlsx'):
                 '   - Straordinari 18:00-20:00',
                 '   - 2 pause (10:45-11:00, 13:00-14:00)',
                 '   - Skill: CUSTOMER_CARE',
+                '   - Microskill: Premium',
                 '   - Postazione: Sede',
                 '',
                 '2. Lucia Bianchi (SAP002):',
@@ -209,6 +214,7 @@ def crea_template_operatori(output_file='template_import_operatori.xlsx'):
                 '   - Turno standard 09:00-18:00',
                 '   - 2 pause',
                 '   - Skill: TECHNICAL_SUPPORT',
+                '   - Microskill: Advanced',
                 '',
                 '=== COME USARE IL TEMPLATE ===',
                 '',
