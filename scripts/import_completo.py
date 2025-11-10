@@ -112,26 +112,36 @@ class ImportCompleto:
 
                     descrizione = str(row.get('Descrizione', '')).strip() if pd.notna(row.get('Descrizione')) else None
                     produttivita = float(row.get('Produttivita_Default', 1.0)) if pd.notna(row.get('Produttivita_Default')) else 1.0
+                    microskill = str(row.get('Microskill', '')).strip() if pd.notna(row.get('Microskill')) else ''
 
-                    # Verifica se skill esiste
-                    existing = self.db_manager.execute_query(
-                        "SELECT ID FROM Skills WHERE Codice_Skill = ?",
-                        (codice,)
-                    )
+                    # Verifica se esiste già la combinazione (Codice_Skill, Microskill)
+                    # Questo permette di avere più microskill per la stessa skill
+                    if microskill:
+                        existing = self.db_manager.execute_query(
+                            "SELECT ID FROM Skills WHERE Codice_Skill = ? AND Microskill = ?",
+                            (codice, microskill)
+                        )
+                    else:
+                        existing = self.db_manager.execute_query(
+                            "SELECT ID FROM Skills WHERE Codice_Skill = ? AND (Microskill IS NULL OR Microskill = '')",
+                            (codice,)
+                        )
 
                     if existing:
-                        print(f"  [SKIP] Skill '{codice}' già esistente, skip")
+                        microskill_info = f" + {microskill}" if microskill else ""
+                        print(f"  [SKIP] Skill '{codice}'{microskill_info} già esistente, skip")
                         self.stats['skills']['skipped'] += 1
                         continue
 
-                    # Insert skill
+                    # Insert skill con microskill
                     query = """
-                        INSERT INTO Skills (Codice_Skill, Descrizione, Produttivita_Default)
-                        VALUES (?, ?, ?)
+                        INSERT INTO Skills (Codice_Skill, Descrizione, Produttivita_Default, Microskill)
+                        VALUES (?, ?, ?, ?)
                     """
-                    self.db_manager.execute_update(query, (codice, descrizione, produttivita))
+                    self.db_manager.execute_update(query, (codice, descrizione, produttivita, microskill))
 
-                    print(f"  [OK] Skill '{codice}' importata")
+                    microskill_info = f" + Microskill: {microskill}" if microskill else ""
+                    print(f"  [OK] Skill '{codice}'{microskill_info} importata")
                     self.stats['skills']['imported'] += 1
 
                 except Exception as e:

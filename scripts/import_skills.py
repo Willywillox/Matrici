@@ -79,31 +79,47 @@ class SkillsImporter:
                     produttivita = float(row.get('Produttivita_Default', 1.0)) if pd.notna(row.get('Produttivita_Default')) else 1.0
                     microskill = str(row.get('Microskill', '')).strip() if pd.notna(row.get('Microskill')) else ''
 
-                    # Verifica se skill esiste
-                    existing = self.db_manager.execute_query(
-                        "SELECT ID FROM Skills WHERE Codice_Skill = ?",
-                        (codice,)
-                    )
+                    # Verifica se esiste già la combinazione (Codice_Skill, Microskill)
+                    # Questo permette di avere più microskill per la stessa skill
+                    if microskill:
+                        existing = self.db_manager.execute_query(
+                            "SELECT ID FROM Skills WHERE Codice_Skill = ? AND Microskill = ?",
+                            (codice, microskill)
+                        )
+                    else:
+                        # Se non c'è microskill, controlla solo per Codice_Skill senza microskill
+                        existing = self.db_manager.execute_query(
+                            "SELECT ID FROM Skills WHERE Codice_Skill = ? AND (Microskill IS NULL OR Microskill = '')",
+                            (codice,)
+                        )
 
                     if existing:
-                        # Update
-                        query = """
-                            UPDATE Skills
-                            SET Descrizione = ?, Produttivita_Default = ?, Microskill = ?
-                            WHERE Codice_Skill = ?
-                        """
-                        self.db_manager.execute_update(query, (descrizione, produttivita, microskill, codice))
-                        microskill_info = f" - Microskill: {microskill}" if microskill else ""
+                        # Update - aggiorna solo il record specifico (Codice_Skill, Microskill)
+                        if microskill:
+                            query = """
+                                UPDATE Skills
+                                SET Descrizione = ?, Produttivita_Default = ?
+                                WHERE Codice_Skill = ? AND Microskill = ?
+                            """
+                            self.db_manager.execute_update(query, (descrizione, produttivita, codice, microskill))
+                        else:
+                            query = """
+                                UPDATE Skills
+                                SET Descrizione = ?, Produttivita_Default = ?
+                                WHERE Codice_Skill = ? AND (Microskill IS NULL OR Microskill = '')
+                            """
+                            self.db_manager.execute_update(query, (descrizione, produttivita, codice))
+                        microskill_info = f" + Microskill: {microskill}" if microskill else ""
                         print(f"  [UPD] Riga {row_num}: '{codice}'{microskill_info} - Aggiornata")
                         self.updated += 1
                     else:
-                        # Insert
+                        # Insert - crea nuovo record
                         query = """
                             INSERT INTO Skills (Codice_Skill, Descrizione, Produttivita_Default, Microskill)
                             VALUES (?, ?, ?, ?)
                         """
                         self.db_manager.execute_update(query, (codice, descrizione, produttivita, microskill))
-                        microskill_info = f" - Microskill: {microskill}" if microskill else ""
+                        microskill_info = f" + Microskill: {microskill}" if microskill else ""
                         print(f"  [OK] Riga {row_num}: '{codice}'{microskill_info} - Importata")
                         self.imported += 1
 
