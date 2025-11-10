@@ -18,6 +18,7 @@ class CapabilityDashboard(ttk.Frame):
         self.tipologie_giustificativi = self._load_tipologie_giustificativi()
         self.setup_ui()
         self.load_skills()  # Carica skill all'inizializzazione
+        self.load_microskills()  # Carica microskill all'inizializzazione
 
     def _load_tipologie_giustificativi(self):
         """Carica tipologie uniche di giustificativi dal database"""
@@ -84,6 +85,12 @@ class CapabilityDashboard(ttk.Frame):
         self.skill_combo = ttk.Combobox(row2, textvariable=self.skill_var,
                                         values=['Tutti'], width=25, state='readonly')
         self.skill_combo.pack(side='left', padx=5)
+
+        ttk.Label(row2, text="Microskill:", font=('Arial', 10, 'bold')).pack(side='left', padx=(15, 5))
+        self.microskill_var = tk.StringVar(value='Tutti')
+        self.microskill_combo = ttk.Combobox(row2, textvariable=self.microskill_var,
+                                             values=['Tutti'], width=20, state='readonly')
+        self.microskill_combo.pack(side='left', padx=5)
 
         ttk.Button(row2, text="🔄 Aggiorna", command=self.refresh_data,
                   width=15).pack(side='left', padx=(20, 5))
@@ -354,6 +361,46 @@ class CapabilityDashboard(ttk.Frame):
             self.skill_combo['values'] = ['Tutti']
             print(f"[ERROR] Errore caricamento skill: {e}")
 
+    def load_microskills(self):
+        """Carica lista microskill dal database"""
+        try:
+            self.db_manager.connect()
+
+            # Carica microskill unici dalla tabella Skills
+            microskills_skills = self.db_manager.execute_query("""
+                SELECT DISTINCT Microskill FROM Skills
+                WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                ORDER BY Microskill
+            """)
+
+            # Carica microskill unici dalla tabella Anagrafica_Operatori
+            microskills_ops = self.db_manager.execute_query("""
+                SELECT DISTINCT Microskill FROM Anagrafica_Operatori
+                WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                ORDER BY Microskill
+            """)
+
+            # Combina e deduplica
+            microskills_set = set()
+            if microskills_skills:
+                microskills_set.update([row[0] for row in microskills_skills])
+            if microskills_ops:
+                microskills_set.update([row[0] for row in microskills_ops])
+
+            if microskills_set:
+                microskills = ['Tutti'] + sorted(list(microskills_set))
+                self.microskill_combo['values'] = microskills
+                print(f"[INFO] Caricati {len(microskills_set)} microskill dal database")
+            else:
+                self.microskill_combo['values'] = ['Tutti']
+                print("[INFO] Nessun microskill trovato nel database")
+
+            self.db_manager.close()
+        except Exception as e:
+            # In caso di errore, lascia solo "Tutti"
+            self.microskill_combo['values'] = ['Tutti']
+            print(f"[ERROR] Errore caricamento microskill: {e}")
+
     def refresh_data(self):
         """Aggiorna i dati della dashboard"""
         try:
@@ -496,6 +543,14 @@ class CapabilityDashboard(ttk.Frame):
             skills = ['Tutti'] + sorted(df_capability['Skill'].unique().tolist())
             self.skill_combo['values'] = skills
 
+            # Aggiorna lista microskill
+            microskills_unique = df_capability['Microskill'].dropna().unique().tolist()
+            # Rimuovi stringhe vuote
+            microskills_unique = [m for m in microskills_unique if m and str(m).strip() != '']
+            if microskills_unique:
+                microskills = ['Tutti'] + sorted(microskills_unique)
+                self.microskill_combo['values'] = microskills
+
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nell'aggiornamento dashboard:\n{e}")
             import traceback
@@ -522,10 +577,18 @@ class CapabilityDashboard(ttk.Frame):
             ore_per_fascia = 0.25  # Default 15 minuti
 
         skill_filter = self.skill_var.get()
+        microskill_filter = self.microskill_var.get()
 
         for _, row in df.iterrows():
             # Filtro skill
             if skill_filter != 'Tutti' and row['Skill'] != skill_filter:
+                continue
+
+            # Filtro microskill
+            row_microskill = row.get('Microskill', '')
+            if row_microskill is None or pd.isna(row_microskill):
+                row_microskill = ''
+            if microskill_filter != 'Tutti' and row_microskill != microskill_filter:
                 continue
 
             # Estrai dati con gestione errori
