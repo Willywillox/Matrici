@@ -213,7 +213,7 @@ class CapabilityDashboard(ttk.Frame):
         scroll_x.pack(side='bottom', fill='x')
 
         # Treeview - colonne dinamiche con giustificativi
-        base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
+        base_columns_before = ['Data', 'Fascia', 'Skill', 'Microskill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
         # Riorganizzate per raggruppamento logico:
         # FTE: Effettivi, Richiesti, Delta
         # Forecast: Volumi, Gestibile, Delta
@@ -245,6 +245,7 @@ class CapabilityDashboard(ttk.Frame):
             'Data': 90,
             'Fascia': 80,
             'Skill': 150,
+            'Microskill': 100,
             'Presenti': 70,
             'In Pausa': 70,
             'In Produzione': 100,
@@ -513,6 +514,9 @@ class CapabilityDashboard(ttk.Frame):
                 data = row['Fascia_Oraria'].strftime('%d/%m/%Y')
                 fascia = row['Fascia_Oraria'].strftime('%H:%M')
                 skill = row['Skill']
+                microskill = row.get('Microskill', '')
+                if microskill is None or pd.isna(microskill):
+                    microskill = ''
                 presenti = int(row['Presenti'])
                 in_pausa = int(row['In_Pausa'])
                 in_prod = int(row['In_Produzione'])
@@ -575,10 +579,10 @@ class CapabilityDashboard(ttk.Frame):
                     tag = 'critical'
 
                 # Costruisci valori dinamicamente includendo giustificativi
-                # Ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione, In Strao,
+                # Ordine: Data, Fascia, Skill, Microskill, Presenti, In Pausa, In Produzione, In Strao,
                 #         [Giustificativi...], FTE Eff., FTE Rich., Richiesto, Gest. Chiam., Delta, Copertura %, Stato
                 values_list = [
-                    data, fascia, skill, presenti, in_pausa, in_prod, in_strao
+                    data, fascia, skill, microskill, presenti, in_pausa, in_prod, in_strao
                 ]
 
                 # Aggiungi valori giustificativi dinamicamente

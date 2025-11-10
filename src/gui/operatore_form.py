@@ -204,6 +204,12 @@ class OperatoreForm(tk.Toplevel):
         self.create_field(scrollable_frame, row, "Etichetta Skill *:", "Etichetta_Skill",
                          combo_values=skills_list, entry_width=30)
 
+        # Microskill
+        row += 1
+        microskills_list = self.get_microskills_list()
+        self.create_field(scrollable_frame, row, "Microskill:", "Microskill",
+                         combo_values=microskills_list, entry_width=30)
+
         # === SEZIONE POSTAZIONE ===
         row += 1
         self.create_section(scrollable_frame, "POSTAZIONE (Sede/Smart Working)", row)
@@ -290,6 +296,36 @@ class OperatoreForm(tk.Toplevel):
             return [''] + [skill[1] for skill in skills]  # skill[1] = Codice_Skill
         except:
             return ['CUSTOMER_CARE', 'BACK_OFFICE', 'TECHNICAL_SUPPORT']
+
+    def get_microskills_list(self):
+        """Recupera lista microskills dal database (valori unici da Skills e Anagrafica_Operatori)"""
+        try:
+            self.db_manager.connect()
+            # Recupera microskill unici dalla tabella Skills
+            microskills_skills = self.db_manager.execute_query(
+                """SELECT DISTINCT Microskill FROM Skills
+                   WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                   ORDER BY Microskill"""
+            )
+            # Recupera microskill unici dalla tabella Anagrafica_Operatori
+            microskills_ops = self.db_manager.execute_query(
+                """SELECT DISTINCT Microskill FROM Anagrafica_Operatori
+                   WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                   ORDER BY Microskill"""
+            )
+            self.db_manager.close()
+
+            # Combina e deduplica
+            microskills_set = set()
+            if microskills_skills:
+                microskills_set.update([row[0] for row in microskills_skills])
+            if microskills_ops:
+                microskills_set.update([row[0] for row in microskills_ops])
+
+            return [''] + sorted(list(microskills_set))
+        except:
+            # Valori di default comuni
+            return ['', 'Premium', 'Basic', 'Advanced', 'Standard']
 
     def get_turni_list(self):
         """Recupera lista turni dal database"""
@@ -390,7 +426,7 @@ class OperatoreForm(tk.Toplevel):
                     'Tipo_Giust_3', 'Inizio_Giust_3', 'Fine_Giust_3',
                     'Tipo_Giust_4', 'Inizio_Giust_4', 'Fine_Giust_4',
                     'Tipo_Giust_5', 'Inizio_Giust_5', 'Fine_Giust_5',
-                    'Etichetta_Skill', 'Data_Riferimento', 'Postazione'
+                    'Etichetta_Skill', 'Microskill', 'Data_Riferimento', 'Postazione'
                 ]
 
                 op_data = cursor[0]

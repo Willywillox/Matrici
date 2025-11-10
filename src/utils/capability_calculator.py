@@ -178,41 +178,48 @@ class CapabilityCalculator:
 
                 if operatore.is_presente(orario):
                     skill = operatore.get_skill_at_time(orario)
+                    microskill = getattr(operatore, 'microskill', '') or ''  # Usa microskill dell'operatore
 
-                    stats_per_skill[skill]['presenti'] += 1
-                    stats_per_skill[skill]['operatori_presenti'].append(operatore.id_sap)
+                    # Usa tupla (skill, microskill) come chiave
+                    skill_key = (skill, microskill)
+
+                    stats_per_skill[skill_key]['presenti'] += 1
+                    stats_per_skill[skill_key]['operatori_presenti'].append(operatore.id_sap)
 
                     if operatore.is_in_pausa(orario):
-                        stats_per_skill[skill]['in_pausa'] += 1
-                        stats_per_skill[skill]['operatori_in_pausa'].append(operatore.id_sap)
+                        stats_per_skill[skill_key]['in_pausa'] += 1
+                        stats_per_skill[skill_key]['operatori_in_pausa'].append(operatore.id_sap)
                     else:
-                        stats_per_skill[skill]['in_produzione'] += 1
-                        stats_per_skill[skill]['operatori_in_produzione'].append(operatore.id_sap)
+                        stats_per_skill[skill_key]['in_produzione'] += 1
+                        stats_per_skill[skill_key]['operatori_in_produzione'].append(operatore.id_sap)
 
                     if operatore.is_in_straordinario(orario):
-                        stats_per_skill[skill]['in_straordinario'] += 1
-                        stats_per_skill[skill]['operatori_in_straordinario'].append(operatore.id_sap)
+                        stats_per_skill[skill_key]['in_straordinario'] += 1
+                        stats_per_skill[skill_key]['operatori_in_straordinario'].append(operatore.id_sap)
 
                     # Conta giustificativi per tipologia (operatori presenti)
                     giust_codice = operatore.get_giustificativo_at_time(orario)
                     if giust_codice and giust_codice in self.giustificativi_map:
                         tipologia = self.giustificativi_map[giust_codice]
                         key = f'giust_{tipologia}'
-                        if key in stats_per_skill[skill]:
-                            stats_per_skill[skill][key] += 1
+                        if key in stats_per_skill[skill_key]:
+                            stats_per_skill[skill_key][key] += 1
                 else:
                     # Operatore NON presente - verifica se ha un giustificativo attivo (ferie, malattia, etc.)
                     giust_codice = operatore.get_giustificativo_at_time(orario)
                     if giust_codice and giust_codice in self.giustificativi_map:
                         # Usa lo skill dell'operatore per categorizzare il giustificativo
                         skill = operatore.etichetta_skill
+                        microskill = getattr(operatore, 'microskill', '') or ''
+                        skill_key = (skill, microskill)
                         tipologia = self.giustificativi_map[giust_codice]
                         key = f'giust_{tipologia}'
-                        if key in stats_per_skill[skill]:
-                            stats_per_skill[skill][key] += 1
+                        if key in stats_per_skill[skill_key]:
+                            stats_per_skill[skill_key][key] += 1
 
-            # Crea record per ogni skill
-            for skill, stats in stats_per_skill.items():
+            # Crea record per ogni (skill, microskill)
+            for skill_key, stats in stats_per_skill.items():
+                skill, microskill = skill_key
                 # Calcola FTE effettivi correttamente:
                 # FTE = (Operatori_in_produzione × Ore_fascia) / 8
                 ore_fascia = intervallo_minuti / 60.0  # Converti minuti in ore
@@ -221,6 +228,7 @@ class CapabilityCalculator:
                 record = {
                     'Fascia_Oraria': fascia,
                     'Skill': skill,
+                    'Microskill': microskill,
                     'Presenti': stats['presenti'],
                     'In_Pausa': stats['in_pausa'],
                     'In_Produzione': stats['in_produzione'],
@@ -631,8 +639,12 @@ class CapabilityCalculator:
             if tipologia in df_all.columns:
                 agg_dict[tipologia] = 'sum'
 
-        # Aggrega per Skill E Data per avere dettaglio giornaliero
-        rendiconto = df_all.groupby(['Skill', 'Data']).agg(agg_dict).reset_index()
+        # Aggrega per Skill, Microskill E Data per avere dettaglio giornaliero
+        # Se la colonna Microskill non esiste, aggiungila vuota
+        if 'Microskill' not in df_all.columns:
+            df_all['Microskill'] = ''
+
+        rendiconto = df_all.groupby(['Skill', 'Microskill', 'Data']).agg(agg_dict).reset_index()
 
         # Converti contatori in ore
         rendiconto['Ore_Totali_Presenza'] = rendiconto['Presenti'] * ore_per_fascia
@@ -684,6 +696,7 @@ class CapabilityCalculator:
         # Seleziona colonne finali
         colonne_base = [
             'Skill',
+            'Microskill',
             'Data',  # Aggiungi Data per mostrare dettaglio giornaliero
             'Ore_Totali_Presenza',
             'Ore_Produzione',
@@ -769,12 +782,14 @@ class CapabilityCalculator:
 
                 # Inizializza record
                 skill = op.get_skill_at_time(orario) if hasattr(op, 'get_skill_at_time') else op.etichetta_skill
+                microskill = getattr(op, 'microskill', '') or ''
 
                 record = {
                     'ID_SAP': op.id_sap,
                     'Nome': op.nome,
                     'Cognome': op.cognome,
                     'Skill': skill if skill else 'N/A',
+                    'Microskill': microskill,
                     'Data': fascia_oraria.date(),  # Aggiungi data per aggregazione giornaliera
                     'Fascia_Oraria': fascia_oraria,
                     'In_Produzione': 0,
@@ -834,6 +849,7 @@ class CapabilityCalculator:
             'Nome': 'first',
             'Cognome': 'first',
             'Skill': 'first',
+            'Microskill': 'first',
             'In_Produzione': 'sum',
             'In_Pausa': 'sum',
             'In_Straordinario': 'sum'
@@ -906,6 +922,7 @@ class CapabilityCalculator:
             'Cognome',
             'Nome',
             'Skill',
+            'Microskill',
             'Ore_Produzione',
             'Ore_Ordinarie_Turno',
             'Ore_Pausa',

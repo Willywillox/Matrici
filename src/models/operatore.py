@@ -56,6 +56,7 @@ class Operatore:
 
         # Skill
         self.etichetta_skill = kwargs.get('Etichetta_Skill', '')
+        self.microskill = kwargs.get('Microskill', '')
         self.data_riferimento = kwargs.get('Data_Riferimento')
 
         # Cambi skill (da caricare separatamente)
