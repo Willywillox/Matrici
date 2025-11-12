@@ -243,7 +243,8 @@ class CapabilityDashboard(ttk.Frame):
         scroll_x.pack(side='bottom', fill='x')
 
         # Treeview - colonne dinamiche con giustificativi
-        base_columns_before = ['Data', 'Fascia', 'Skill', 'Microskill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
+        # Rimossa colonna Microskill - i dati vengono aggregati per fascia
+        base_columns_before = ['Data', 'Fascia', 'Skill', 'Presenti', 'In Pausa', 'In Produzione', 'In Strao']
         # Riorganizzate per raggruppamento logico:
         # FTE: Effettivi, Richiesti, Delta
         # Forecast: Volumi, Gestibile, Delta
@@ -275,7 +276,6 @@ class CapabilityDashboard(ttk.Frame):
             'Data': 90,
             'Fascia': 80,
             'Skill': 150,
-            'Microskill': 100,
             'Presenti': 70,
             'In Pausa': 70,
             'In Produzione': 100,
@@ -685,16 +685,32 @@ class CapabilityDashboard(ttk.Frame):
         else:
             ore_per_fascia = 0.25  # Default 15 minuti
 
-        for _, row in df.iterrows():
+        # Aggrega dati per (Fascia_Oraria, Skill) - somma tutti i valori numerici
+        # I microskill selezionati sono già stati filtrati in apply_filter()
+        numeric_cols = ['Presenti', 'In_Pausa', 'In_Produzione', 'In_Straordinario',
+                       'FTE_Effettivi', 'FTE_Richiesti', 'Volumi_Attesi', 'Gestibile_Chiamate',
+                       'Agenti_Richiesti', 'Produttivita_Oraria']
+
+        # Aggiungi colonne giustificativi dinamiche
+        for tipologia in self.tipologie_giustificativi:
+            if tipologia in df.columns:
+                numeric_cols.append(tipologia)
+
+        # Raggruppa e aggrega
+        df_aggregato = df.groupby(['Fascia_Oraria', 'Skill'], as_index=False)[numeric_cols].sum()
+
+        # Ricalcola metriche percentuali dopo aggregazione
+        df_aggregato['Capability_%'] = (df_aggregato['Gestibile_Chiamate'] / df_aggregato['Volumi_Attesi'] * 100).fillna(0)
+        df_aggregato['Copertura_%'] = (df_aggregato['In_Produzione'] / df_aggregato['Agenti_Richiesti'] * 100).fillna(100).clip(upper=100)
+        df_aggregato['Delta_FTE'] = df_aggregato['FTE_Effettivi'] - df_aggregato['FTE_Richiesti']
+
+        for _, row in df_aggregato.iterrows():
             # Estrai dati con gestione errori
             try:
                 # Data e fascia oraria
                 data = row['Fascia_Oraria'].strftime('%d/%m/%Y')
                 fascia = row['Fascia_Oraria'].strftime('%H:%M')
                 skill = row['Skill']
-                microskill = row.get('Microskill', '')
-                if microskill is None or pd.isna(microskill):
-                    microskill = ''
                 presenti = int(row['Presenti'])
                 in_pausa = int(row['In_Pausa'])
                 in_prod = int(row['In_Produzione'])
@@ -757,10 +773,10 @@ class CapabilityDashboard(ttk.Frame):
                     tag = 'critical'
 
                 # Costruisci valori dinamicamente includendo giustificativi
-                # Ordine: Data, Fascia, Skill, Microskill, Presenti, In Pausa, In Produzione, In Strao,
+                # Ordine: Data, Fascia, Skill, Presenti, In Pausa, In Produzione, In Strao,
                 #         [Giustificativi...], FTE Eff., FTE Rich., Richiesto, Gest. Chiam., Delta, Copertura %, Stato
                 values_list = [
-                    data, fascia, skill, microskill, presenti, in_pausa, in_prod, in_strao
+                    data, fascia, skill, presenti, in_pausa, in_prod, in_strao
                 ]
 
                 # Aggiungi valori giustificativi dinamicamente
