@@ -5,7 +5,7 @@ import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 # Aggiungi path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
