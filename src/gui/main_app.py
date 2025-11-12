@@ -537,6 +537,9 @@ class MatriciApp:
                         )
 
                         if pause and len(pause) > 0:
+                            # Riconnetti perché PauseScheduler chiude la connessione dopo ogni chiamata
+                            self.db_manager.connect()
+
                             # Aggiorna record con le pause calcolate
                             update_data = {}
                             for idx, (inizio, fine) in enumerate(pause, 1):
