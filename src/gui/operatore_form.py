@@ -412,6 +412,9 @@ class OperatoreForm(tk.Toplevel):
 
             if cursor and len(cursor) > 0:
                 # Ottieni nomi colonne e dati
+                # IMPORTANTE: L'ordine deve corrispondere all'ordine reale delle colonne nel database
+                # Dopo la migrazione add_microskill, l'ordine è:
+                # ..., Etichetta_Skill(43), Data_Riferimento(44), Postazione(45), Microskill(46)
                 columns = [
                     'ID', 'Nome', 'Cognome', 'ID_SAP', 'Tipo_Contratto', 'FTE', 'Ore_Settimana',
                     'ID_Turno', 'Ora_Inizio_Turno', 'Ora_Fine_Turno',
@@ -426,7 +429,7 @@ class OperatoreForm(tk.Toplevel):
                     'Tipo_Giust_3', 'Inizio_Giust_3', 'Fine_Giust_3',
                     'Tipo_Giust_4', 'Inizio_Giust_4', 'Fine_Giust_4',
                     'Tipo_Giust_5', 'Inizio_Giust_5', 'Fine_Giust_5',
-                    'Etichetta_Skill', 'Microskill', 'Data_Riferimento', 'Postazione'
+                    'Etichetta_Skill', 'Data_Riferimento', 'Postazione', 'Microskill'  # ORDINE CORRETTO!
                 ]
 
                 op_data = cursor[0]
