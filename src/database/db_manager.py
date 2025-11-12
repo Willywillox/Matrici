@@ -149,10 +149,39 @@ class DatabaseManager:
 
     def update_operatore(self, id_operatore, operatore_data):
         """Aggiorna un operatore esistente"""
+        # Rimuovi il campo ID da operatore_data se presente (non deve essere aggiornato)
+        if 'ID' in operatore_data:
+            operatore_data = {k: v for k, v in operatore_data.items() if k != 'ID'}
+
+        # Verifica se stiamo modificando ID_SAP o Data_Riferimento
+        if 'ID_SAP' in operatore_data or 'Data_Riferimento' in operatore_data:
+            id_sap = operatore_data.get('ID_SAP')
+            data_rif = operatore_data.get('Data_Riferimento')
+
+            # Se entrambi sono presenti, verifica che non confliggano con un altro operatore
+            if id_sap and data_rif:
+                existing = self.execute_query(
+                    "SELECT ID FROM Anagrafica_Operatori WHERE ID_SAP = ? AND Data_Riferimento = ? AND ID != ?",
+                    (id_sap, data_rif, id_operatore)
+                )
+
+                if existing and len(existing) > 0:
+                    print(f"[ERROR] Conflitto trovato: ID_SAP={id_sap}, Data={data_rif} già esiste per operatore ID={existing[0][0]}")
+                    raise ValueError(
+                        f"Esiste già un operatore con ID_SAP='{id_sap}' nella data {data_rif}.\n"
+                        f"Non puoi avere due operatori con lo stesso ID_SAP nella stessa data."
+                    )
+
         set_clause = ', '.join([f"{k} = ?" for k in operatore_data.keys()])
         query = f"UPDATE Anagrafica_Operatori SET {set_clause} WHERE ID = ?"
 
         params = list(operatore_data.values()) + [id_operatore]
+
+        # Debug logging
+        print(f"[DEBUG DB] UPDATE query: {query}")
+        print(f"[DEBUG DB] Params: {params}")
+        print(f"[DEBUG DB] ID_operatore: {id_operatore}")
+
         return self.execute_update(query, params)
 
     def delete_operatore(self, id_operatore):

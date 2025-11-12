@@ -602,10 +602,16 @@ class OperatoreForm(tk.Toplevel):
 
             if self.operatore_id:
                 # Update
+                print(f"[DEBUG] UPDATE - operatore_id={self.operatore_id}")
+                print(f"[DEBUG] ID_SAP={operatore_data.get('ID_SAP')}, Data={operatore_data.get('Data_Riferimento')}")
+                print(f"[DEBUG] Microskill={operatore_data.get('Microskill')}")
                 self.db_manager.update_operatore(self.operatore_id, operatore_data)
                 messagebox.showinfo("Successo", "Operatore aggiornato con successo")
             else:
                 # Insert
+                print(f"[DEBUG] INSERT - nuovo operatore")
+                print(f"[DEBUG] ID_SAP={operatore_data.get('ID_SAP')}, Data={operatore_data.get('Data_Riferimento')}")
+                print(f"[DEBUG] Microskill={operatore_data.get('Microskill')}")
                 self.db_manager.insert_operatore(operatore_data)
                 messagebox.showinfo("Successo", "Operatore inserito con successo")
 
@@ -613,6 +619,9 @@ class OperatoreForm(tk.Toplevel):
             self.destroy()
 
         except Exception as e:
+            print(f"[ERROR] Errore durante salvataggio:")
+            print(f"[ERROR] operatore_id={self.operatore_id}")
+            print(f"[ERROR] ID_SAP={operatore_data.get('ID_SAP')}, Data={operatore_data.get('Data_Riferimento')}")
             messagebox.showerror("Errore", f"Errore salvataggio operatore: {e}")
             import traceback
             traceback.print_exc()
