@@ -86,11 +86,34 @@ class CapabilityDashboard(ttk.Frame):
                                         values=['Tutti'], width=25, state='readonly')
         self.skill_combo.pack(side='left', padx=5)
 
+        # Bind per aggiornare filtro quando cambia skill
+        self.skill_combo.bind('<<ComboboxSelected>>', lambda e: self.apply_filter())
+
+        # Microskill con selezione multipla
         ttk.Label(row2, text="Microskill:", font=('Arial', 10, 'bold')).pack(side='left', padx=(15, 5))
-        self.microskill_var = tk.StringVar(value='Tutti')
-        self.microskill_combo = ttk.Combobox(row2, textvariable=self.microskill_var,
-                                             values=['Tutti'], width=20, state='readonly')
-        self.microskill_combo.pack(side='left', padx=5)
+
+        # Frame per contenere Listbox e Scrollbar
+        microskill_frame = ttk.Frame(row2)
+        microskill_frame.pack(side='left', padx=5)
+
+        # Listbox con scrollbar per selezione multipla
+        microskill_scrollbar = ttk.Scrollbar(microskill_frame, orient='vertical')
+        self.microskill_listbox = tk.Listbox(microskill_frame,
+                                             height=3,
+                                             width=20,
+                                             selectmode='multiple',
+                                             exportselection=False,
+                                             yscrollcommand=microskill_scrollbar.set)
+        microskill_scrollbar.config(command=self.microskill_listbox.yview)
+        self.microskill_listbox.pack(side='left', fill='both')
+        microskill_scrollbar.pack(side='left', fill='y')
+
+        # Inserisci valore iniziale
+        self.microskill_listbox.insert(0, 'Tutti')
+        self.microskill_listbox.selection_set(0)
+
+        # Bind per aggiornare filtro quando cambia selezione
+        self.microskill_listbox.bind('<<ListboxSelect>>', self.on_microskill_select)
 
         ttk.Button(row2, text="🔄 Aggiorna", command=self.refresh_data,
                   width=15).pack(side='left', padx=(20, 5))
@@ -387,19 +410,86 @@ class CapabilityDashboard(ttk.Frame):
             if microskills_ops:
                 microskills_set.update([row[0] for row in microskills_ops])
 
+            # Aggiorna la listbox
+            self.microskill_listbox.delete(0, tk.END)  # Pulisci contenuto esistente
+            self.microskill_listbox.insert(0, 'Tutti')
+
             if microskills_set:
-                microskills = ['Tutti'] + sorted(list(microskills_set))
-                self.microskill_combo['values'] = microskills
+                for microskill in sorted(list(microskills_set)):
+                    self.microskill_listbox.insert(tk.END, microskill)
                 print(f"[INFO] Caricati {len(microskills_set)} microskill dal database")
             else:
-                self.microskill_combo['values'] = ['Tutti']
                 print("[INFO] Nessun microskill trovato nel database")
+
+            # Seleziona 'Tutti' di default
+            self.microskill_listbox.selection_set(0)
 
             self.db_manager.close()
         except Exception as e:
             # In caso di errore, lascia solo "Tutti"
-            self.microskill_combo['values'] = ['Tutti']
+            self.microskill_listbox.delete(0, tk.END)
+            self.microskill_listbox.insert(0, 'Tutti')
+            self.microskill_listbox.selection_set(0)
             print(f"[ERROR] Errore caricamento microskill: {e}")
+
+    def get_selected_microskills(self):
+        """Ottiene la lista dei microskill selezionati nella listbox"""
+        selected_indices = self.microskill_listbox.curselection()
+        if not selected_indices:
+            return []
+
+        selected_microskills = []
+        for idx in selected_indices:
+            value = self.microskill_listbox.get(idx)
+            selected_microskills.append(value)
+
+        return selected_microskills
+
+    def on_microskill_select(self, event=None):
+        """Callback quando cambia la selezione dei microskill"""
+        selected = self.get_selected_microskills()
+
+        # Se è selezionato 'Tutti', deseleziona gli altri
+        if 'Tutti' in selected and len(selected) > 1:
+            # Se 'Tutti' è stato appena cliccato, deseleziona gli altri
+            if selected[-1] == 'Tutti':
+                self.microskill_listbox.selection_clear(0, tk.END)
+                self.microskill_listbox.selection_set(0)  # Solo 'Tutti'
+            else:
+                # Se è stato selezionato altro, deseleziona 'Tutti'
+                tutti_idx = self.microskill_listbox.get(0, tk.END).index('Tutti')
+                self.microskill_listbox.selection_clear(tutti_idx)
+
+        # Aggiorna filtro e riepilogo
+        self.apply_filter()
+
+    def apply_filter(self):
+        """Applica il filtro ai dati correnti e aggiorna il riepilogo"""
+        if self.current_data is None or self.current_data.empty:
+            return
+
+        # Filtra i dati in base a skill e microskill selezionati
+        df_filtered = self.current_data.copy()
+
+        # Filtro skill
+        skill_filter = self.skill_var.get()
+        if skill_filter != 'Tutti':
+            df_filtered = df_filtered[df_filtered['Skill'] == skill_filter]
+
+        # Filtro microskill (selezione multipla)
+        selected_microskills = self.get_selected_microskills()
+        if selected_microskills and 'Tutti' not in selected_microskills:
+            # Filtra per includere solo i microskill selezionati
+            # Gestisci anche valori null/NaN come stringhe vuote
+            df_filtered = df_filtered[
+                df_filtered['Microskill'].fillna('').isin(selected_microskills)
+            ]
+
+        # Ripopola tabella con dati filtrati
+        self.populate_table(df_filtered)
+
+        # Aggiorna summary con dati filtrati
+        self.update_summary(df_filtered)
 
     def refresh_data(self):
         """Aggiorna i dati della dashboard"""
@@ -543,13 +633,32 @@ class CapabilityDashboard(ttk.Frame):
             skills = ['Tutti'] + sorted(df_capability['Skill'].unique().tolist())
             self.skill_combo['values'] = skills
 
-            # Aggiorna lista microskill
+            # Aggiorna lista microskill nella listbox
             microskills_unique = df_capability['Microskill'].dropna().unique().tolist()
             # Rimuovi stringhe vuote
             microskills_unique = [m for m in microskills_unique if m and str(m).strip() != '']
+
+            # Salva selezione corrente
+            current_selection = self.get_selected_microskills()
+
+            # Aggiorna listbox
+            self.microskill_listbox.delete(0, tk.END)
+            self.microskill_listbox.insert(0, 'Tutti')
+
             if microskills_unique:
-                microskills = ['Tutti'] + sorted(microskills_unique)
-                self.microskill_combo['values'] = microskills
+                for microskill in sorted(microskills_unique):
+                    self.microskill_listbox.insert(tk.END, microskill)
+
+            # Ripristina selezione se possibile
+            all_items = list(self.microskill_listbox.get(0, tk.END))
+            for item in current_selection:
+                if item in all_items:
+                    idx = all_items.index(item)
+                    self.microskill_listbox.selection_set(idx)
+
+            # Se nessuna selezione, seleziona 'Tutti'
+            if not self.microskill_listbox.curselection():
+                self.microskill_listbox.selection_set(0)
 
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nell'aggiornamento dashboard:\n{e}")
@@ -576,21 +685,7 @@ class CapabilityDashboard(ttk.Frame):
         else:
             ore_per_fascia = 0.25  # Default 15 minuti
 
-        skill_filter = self.skill_var.get()
-        microskill_filter = self.microskill_var.get()
-
         for _, row in df.iterrows():
-            # Filtro skill
-            if skill_filter != 'Tutti' and row['Skill'] != skill_filter:
-                continue
-
-            # Filtro microskill
-            row_microskill = row.get('Microskill', '')
-            if row_microskill is None or pd.isna(row_microskill):
-                row_microskill = ''
-            if microskill_filter != 'Tutti' and row_microskill != microskill_filter:
-                continue
-
             # Estrai dati con gestione errori
             try:
                 # Data e fascia oraria
