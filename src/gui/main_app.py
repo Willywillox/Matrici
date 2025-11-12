@@ -510,6 +510,8 @@ class MatriciApp:
                         skill = values[43] if len(values) > 43 else None
                         ora_inizio = values[8] if len(values) > 8 else None
                         ora_fine = values[9] if len(values) > 9 else None
+                        ora_inizio_spezzato = values[10] if len(values) > 10 else None
+                        ora_fine_spezzato = values[11] if len(values) > 11 else None
 
                         if not ora_inizio or not skill:
                             continue  # Salta se mancano dati essenziali
@@ -523,34 +525,74 @@ class MatriciApp:
                                 val_str = val_str.split(' ')[1]
                             return val_str[:5] if len(val_str) >= 5 else val_str
 
+                        def calc_duration_hours(inizio_str, fine_str):
+                            """Calcola durata in ore tra due orari HH:MM"""
+                            try:
+                                from datetime import datetime
+                                inizio = datetime.strptime(inizio_str, '%H:%M')
+                                fine = datetime.strptime(fine_str, '%H:%M')
+                                durata = (fine - inizio).total_seconds() / 3600
+                                return max(0, durata)
+                            except:
+                                return 0
+
                         ora_inizio_str = format_time(ora_inizio)
                         ora_fine_str = format_time(ora_fine) if ora_fine else "18:00"
 
-                        # Calcola pause
-                        pause = scheduler.calcola_pause_automatiche(
-                            ora_inizio_turno=ora_inizio_str,
-                            ora_fine_turno=ora_fine_str,
-                            skill=skill,
-                            data_riferimento=data_str,
-                            id_sap_corrente=id_sap,
-                            num_pause=1
-                        )
+                        # Calcola durata turno principale e numero pause necessarie
+                        durata_turno = calc_duration_hours(ora_inizio_str, ora_fine_str)
+                        num_pause_turno = max(1, round(durata_turno / 2)) if durata_turno > 0 else 0
 
-                        if pause and len(pause) > 0:
+                        # Calcola pause per turno principale
+                        pause_totali = []
+                        if num_pause_turno > 0:
+                            pause = scheduler.calcola_pause_automatiche(
+                                ora_inizio_turno=ora_inizio_str,
+                                ora_fine_turno=ora_fine_str,
+                                skill=skill,
+                                data_riferimento=data_str,
+                                id_sap_corrente=id_sap,
+                                num_pause=num_pause_turno
+                            )
+                            if pause:
+                                pause_totali.extend(pause)
+
+                        # Gestisci turno spezzato (se presente)
+                        if ora_inizio_spezzato and ora_fine_spezzato:
+                            ora_inizio_spez_str = format_time(ora_inizio_spezzato)
+                            ora_fine_spez_str = format_time(ora_fine_spezzato)
+
+                            if ora_inizio_spez_str and ora_fine_spez_str:
+                                durata_spezzato = calc_duration_hours(ora_inizio_spez_str, ora_fine_spez_str)
+                                num_pause_spezzato = max(1, round(durata_spezzato / 2)) if durata_spezzato > 0 else 0
+
+                                if num_pause_spezzato > 0:
+                                    pause_spezzato = scheduler.calcola_pause_automatiche(
+                                        ora_inizio_turno=ora_inizio_spez_str,
+                                        ora_fine_turno=ora_fine_spez_str,
+                                        skill=skill,
+                                        data_riferimento=data_str,
+                                        id_sap_corrente=id_sap,
+                                        num_pause=num_pause_spezzato
+                                    )
+                                    if pause_spezzato:
+                                        pause_totali.extend(pause_spezzato)
+
+                        if pause_totali and len(pause_totali) > 0:
                             # Riconnetti perché PauseScheduler chiude la connessione dopo ogni chiamata
                             self.db_manager.connect()
 
-                            # Aggiorna record con le pause calcolate
+                            # Aggiorna record con le pause calcolate (massimo 5 slot)
                             update_data = {}
-                            for idx, (inizio, fine) in enumerate(pause, 1):
-                                if idx <= 5:
-                                    update_data[f'Inizio_Pausa_{idx}'] = inizio
-                                    update_data[f'Fine_Pausa_{idx}'] = fine
+                            for idx, (inizio, fine) in enumerate(pause_totali[:5], 1):
+                                update_data[f'Inizio_Pausa_{idx}'] = inizio
+                                update_data[f'Fine_Pausa_{idx}'] = fine
 
                             self.db_manager.update_operatore(op_id, update_data)
-                            total_pause += len(pause)
+                            total_pause += len(pause_totali[:5])
 
                         total_operatori += 1
+
 
                 self.db_manager.close()
                 progress_window.destroy()
