@@ -195,6 +195,8 @@ class MatriciApp:
                   width=15).pack(side='left', padx=5)
         ttk.Button(toolbar, text="🔄 Aggiorna Lista", command=self.refresh_operatori,
                   width=15).pack(side='left', padx=5)
+        ttk.Button(toolbar, text="⏱️ Calcola Pause Automatiche", command=self.calcola_pause_massivo,
+                  width=25, style='Accent.TButton').pack(side='left', padx=5)
 
         # Filtri
         filter_frame = ttk.LabelFrame(self.tab_anagrafica, text="Filtri", padding=10)
@@ -207,12 +209,15 @@ class MatriciApp:
                                            width=12, date_pattern='dd/mm/yyyy')
         self.filter_date_entry.pack(side='left', padx=5)
 
-        # Checkbox "Tutte le date"
-        self.filter_all_dates_var = tk.BooleanVar(value=False)
+        # Checkbox "Tutte le date" - DEFAULT TRUE per mostrare tutti i record
+        self.filter_all_dates_var = tk.BooleanVar(value=True)
         all_dates_check = ttk.Checkbutton(filter_frame, text="Tutte le date",
                                           variable=self.filter_all_dates_var,
                                           command=self.toggle_date_filter)
         all_dates_check.pack(side='left', padx=5)
+
+        # Disabilita DateEntry di default (perché "Tutte le date" è True)
+        self.filter_date_entry.config(state='disabled')
 
         ttk.Label(filter_frame, text="Skill:").pack(side='left', padx=(20, 5))
         self.filter_skill_var = tk.StringVar(value='Tutte')
@@ -398,6 +403,174 @@ class MatriciApp:
         dialog.grab_set()
         self.root.wait_window(dialog)
         self.refresh_operatori()
+
+    def calcola_pause_massivo(self):
+        """Calcola pause automatiche per tutti gli operatori in un intervallo di date"""
+        # Crea dialog per selezione intervallo
+        dialog = tk.Toplevel(self.root)
+        dialog.title("Calcolo Pause Automatico Massivo")
+        dialog.geometry("500x250")
+        dialog.transient(self.root)
+        dialog.grab_set()
+
+        # Centra dialog
+        dialog.update_idletasks()
+        x = (dialog.winfo_screenwidth() - 500) // 2
+        y = (dialog.winfo_screenheight() - 250) // 2
+        dialog.geometry(f"500x250+{x}+{y}")
+
+        # Frame principale
+        main_frame = ttk.Frame(dialog, padding=20)
+        main_frame.pack(fill='both', expand=True)
+
+        ttk.Label(main_frame, text="Calcolo Pause Automatiche per Intervallo Date",
+                 font=('Arial', 12, 'bold')).pack(pady=(0, 20))
+
+        ttk.Label(main_frame, text="Questo calcolerà automaticamente le pause ottimizzate per tutti gli operatori\n"
+                 "nell'intervallo di date selezionato.", justify='center').pack(pady=(0, 20))
+
+        # Selezione date
+        date_frame = ttk.Frame(main_frame)
+        date_frame.pack(pady=10)
+
+        ttk.Label(date_frame, text="Data Inizio:").grid(row=0, column=0, padx=5, pady=5, sticky='e')
+        from tkcalendar import DateEntry
+        date_start_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
+        date_start_entry = DateEntry(date_frame, textvariable=date_start_var,
+                                     width=12, date_pattern='dd/mm/yyyy')
+        date_start_entry.grid(row=0, column=1, padx=5, pady=5)
+
+        ttk.Label(date_frame, text="Data Fine:").grid(row=1, column=0, padx=5, pady=5, sticky='e')
+        date_end_var = tk.StringVar(value=datetime.now().strftime('%d/%m/%Y'))
+        date_end_entry = DateEntry(date_frame, textvariable=date_end_var,
+                                   width=12, date_pattern='dd/mm/yyyy')
+        date_end_entry.grid(row=1, column=1, padx=5, pady=5)
+
+        # Bottoni
+        button_frame = ttk.Frame(main_frame)
+        button_frame.pack(pady=20)
+
+        def esegui_calcolo():
+            try:
+                # Parse date
+                data_inizio = datetime.strptime(date_start_var.get(), '%d/%m/%Y')
+                data_fine = datetime.strptime(date_end_var.get(), '%d/%m/%Y')
+
+                if data_fine < data_inizio:
+                    messagebox.showwarning("Attenzione", "La data fine deve essere >= data inizio")
+                    return
+
+                # Chiudi dialog
+                dialog.destroy()
+
+                # Mostra progress
+                progress_window = tk.Toplevel(self.root)
+                progress_window.title("Calcolo in corso...")
+                progress_window.geometry("400x150")
+                progress_window.transient(self.root)
+                progress_window.grab_set()
+
+                ttk.Label(progress_window, text="Calcolo pause automatiche in corso...",
+                         font=('Arial', 12, 'bold')).pack(pady=20)
+                progress_label = ttk.Label(progress_window, text="Inizializzazione...")
+                progress_label.pack(pady=10)
+
+                # Calcola pause
+                from utils.pause_scheduler import PauseScheduler
+                self.db_manager.connect()
+
+                # Genera lista di tutte le date nell'intervallo
+                date_list = []
+                current_date = data_inizio
+                while current_date <= data_fine:
+                    date_list.append(current_date.strftime('%Y-%m-%d'))
+                    current_date += timedelta(days=1)
+
+                total_operatori = 0
+                total_pause = 0
+
+                # Per ogni data, carica operatori e calcola pause
+                for data_str in date_list:
+                    progress_label.config(text=f"Elaborazione {data_str}...")
+                    progress_window.update()
+
+                    # Carica operatori per questa data
+                    operatori = self.db_manager.get_operatori(data_str)
+
+                    if not operatori:
+                        continue
+
+                    scheduler = PauseScheduler(self.db_manager)
+
+                    # Per ogni operatore, calcola e aggiorna pause
+                    for row in operatori:
+                        values = list(row)
+                        op_id = values[0]
+                        id_sap = values[3] if len(values) > 3 else None
+                        skill = values[43] if len(values) > 43 else None
+                        ora_inizio = values[8] if len(values) > 8 else None
+                        ora_fine = values[9] if len(values) > 9 else None
+
+                        if not ora_inizio or not skill:
+                            continue  # Salta se mancano dati essenziali
+
+                        # Formatta orari
+                        def format_time(value):
+                            if not value:
+                                return None
+                            val_str = str(value)
+                            if ' ' in val_str:
+                                val_str = val_str.split(' ')[1]
+                            return val_str[:5] if len(val_str) >= 5 else val_str
+
+                        ora_inizio_str = format_time(ora_inizio)
+                        ora_fine_str = format_time(ora_fine) if ora_fine else "18:00"
+
+                        # Calcola pause
+                        pause = scheduler.calcola_pause_automatiche(
+                            ora_inizio_turno=ora_inizio_str,
+                            ora_fine_turno=ora_fine_str,
+                            skill=skill,
+                            data_riferimento=data_str,
+                            id_sap_corrente=id_sap,
+                            num_pause=1
+                        )
+
+                        if pause and len(pause) > 0:
+                            # Aggiorna record con le pause calcolate
+                            update_data = {}
+                            for idx, (inizio, fine) in enumerate(pause, 1):
+                                if idx <= 5:
+                                    update_data[f'Inizio_Pausa_{idx}'] = inizio
+                                    update_data[f'Fine_Pausa_{idx}'] = fine
+
+                            self.db_manager.update_operatore(op_id, update_data)
+                            total_pause += len(pause)
+
+                        total_operatori += 1
+
+                self.db_manager.close()
+                progress_window.destroy()
+
+                # Mostra risultato
+                messagebox.showinfo("Completato",
+                                   f"Calcolo completato!\n\n"
+                                   f"Operatori elaborati: {total_operatori}\n"
+                                   f"Pause calcolate: {total_pause}\n"
+                                   f"Date elaborate: {len(date_list)}")
+
+                # Aggiorna lista
+                self.refresh_operatori()
+
+            except Exception as e:
+                messagebox.showerror("Errore", f"Errore durante il calcolo:\n{e}")
+                import traceback
+                traceback.print_exc()
+
+        ttk.Button(button_frame, text="✓ Calcola", command=esegui_calcolo,
+                  style='Accent.TButton', width=15).pack(side='left', padx=5)
+        ttk.Button(button_frame, text="✗ Annulla", command=dialog.destroy,
+                  width=15).pack(side='left', padx=5)
 
     def importa_excel(self):
         """Importa operatori da file Excel"""
