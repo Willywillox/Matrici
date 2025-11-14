@@ -153,108 +153,6 @@ class CapabilityDashboard(ttk.Frame):
         # Crea vista iniziale (Totale)
         self.create_summary_totale()
 
-        # Sezione FTE
-        fte_section = ttk.LabelFrame(summary_grid, text="FTE", padding=5)
-        fte_section.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(0, weight=1)
-
-        fte_indicators = [
-            ('required_fte', 'Richiesti', '#2196F3'),
-            ('total_fte', 'Disponibili', '#4CAF50'),
-            ('delta_fte', 'Delta', '#FF9800')
-        ]
-
-        for i, (key, label, color) in enumerate(fte_indicators):
-            card = ttk.Frame(fte_section)
-            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
-            fte_section.columnconfigure(i, weight=1)
-
-            ttk.Label(card, text=label, font=('Arial', 8)).pack()
-            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
-                                   foreground=color)
-            value_label.pack()
-            self.summary_labels[key] = value_label
-
-        # Sezione Forecast
-        forecast_section = ttk.LabelFrame(summary_grid, text="Forecast", padding=5)
-        forecast_section.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(1, weight=1)
-
-        forecast_indicators = [
-            ('volumi_attesi', 'Volumi Attesi', '#9C27B0'),
-            ('gestibile', 'Gestibile', '#4CAF50'),
-            ('delta_forecast', 'Delta', '#FF9800')
-        ]
-
-        for i, (key, label, color) in enumerate(forecast_indicators):
-            card = ttk.Frame(forecast_section)
-            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
-            forecast_section.columnconfigure(i, weight=1)
-
-            ttk.Label(card, text=label, font=('Arial', 8)).pack()
-            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
-                                   foreground=color)
-            value_label.pack()
-            self.summary_labels[key] = value_label
-
-        # Sezione Ore
-        ore_section = ttk.LabelFrame(summary_grid, text="Ore", padding=5)
-        ore_section.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(2, weight=1)
-
-        ore_indicators = [
-            ('ore_richieste', 'Richieste', '#2196F3'),
-            ('ore_produzione', 'Produzione', '#4CAF50'),
-            ('delta_ore', 'Delta', '#FF9800')
-        ]
-
-        for i, (key, label, color) in enumerate(ore_indicators):
-            card = ttk.Frame(ore_section)
-            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
-            ore_section.columnconfigure(i, weight=1)
-
-            ttk.Label(card, text=label, font=('Arial', 8)).pack()
-            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
-                                   foreground=color)
-            value_label.pack()
-            self.summary_labels[key] = value_label
-
-        # Sezione Capability
-        capability_section = ttk.LabelFrame(summary_grid, text="Capability", padding=5)
-        capability_section.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(3, weight=1)
-
-        capability_indicators = [
-            ('capability_forecast', 'Prevista', '#9C27B0'),
-            ('capability_gestibile', 'Gestibile', '#4CAF50'),
-            ('delta_capability', 'Delta', '#FF9800')
-        ]
-
-        for i, (key, label, color) in enumerate(capability_indicators):
-            card = ttk.Frame(capability_section)
-            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
-            capability_section.columnconfigure(i, weight=1)
-
-            ttk.Label(card, text=label, font=('Arial', 8)).pack()
-            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
-                                   foreground=color)
-            value_label.pack()
-            self.summary_labels[key] = value_label
-
-        # Sezione Copertura
-        coverage_section = ttk.LabelFrame(summary_grid, text="Performance", padding=5)
-        coverage_section.grid(row=0, column=4, padx=5, pady=5, sticky='ew')
-        summary_grid.columnconfigure(4, weight=1)
-
-        coverage_card = ttk.Frame(coverage_section)
-        coverage_card.pack(padx=5, pady=2)
-
-        ttk.Label(coverage_card, text="Copertura Media", font=('Arial', 8)).pack()
-        value_label = ttk.Label(coverage_card, text="--", font=('Arial', 14, 'bold'),
-                               foreground='#9C27B0')
-        value_label.pack()
-        self.summary_labels['coverage'] = value_label
-
         # === TABELLA CAPABILITY ===
         table_frame = ttk.LabelFrame(self, text="Dettaglio Capability per Fascia Oraria", padding=10)
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
@@ -1068,8 +966,107 @@ Operatori in Produzione: {in_prod}
         self.summary_grid = ttk.Frame(self.summary_frame)
         self.summary_grid.pack(fill='x')
 
-        # Le sezioni sono già create sotto nel codice esistente
-        # Questo metodo serve solo per compatibilità
+        # Sezione FTE
+        fte_section = ttk.LabelFrame(self.summary_grid, text="FTE", padding=5)
+        fte_section.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
+        self.summary_grid.columnconfigure(0, weight=1)
+
+        fte_indicators = [
+            ('required_fte', 'Richiesti', '#2196F3'),
+            ('total_fte', 'Disponibili', '#4CAF50'),
+            ('delta_fte', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(fte_indicators):
+            card = ttk.Frame(fte_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            fte_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Forecast
+        forecast_section = ttk.LabelFrame(self.summary_grid, text="Forecast", padding=5)
+        forecast_section.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+        self.summary_grid.columnconfigure(1, weight=1)
+
+        forecast_indicators = [
+            ('volumi_attesi', 'Volumi Attesi', '#9C27B0'),
+            ('gestibile', 'Gestibile', '#4CAF50'),
+            ('delta_forecast', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(forecast_indicators):
+            card = ttk.Frame(forecast_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            forecast_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Ore
+        ore_section = ttk.LabelFrame(self.summary_grid, text="Ore", padding=5)
+        ore_section.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
+        self.summary_grid.columnconfigure(2, weight=1)
+
+        ore_indicators = [
+            ('ore_richieste', 'Richieste', '#2196F3'),
+            ('ore_produzione', 'Produzione', '#4CAF50'),
+            ('delta_ore', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(ore_indicators):
+            card = ttk.Frame(ore_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            ore_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Capability
+        capability_section = ttk.LabelFrame(self.summary_grid, text="Capability", padding=5)
+        capability_section.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
+        self.summary_grid.columnconfigure(3, weight=1)
+
+        capability_indicators = [
+            ('capability_forecast', 'Prevista', '#9C27B0'),
+            ('capability_gestibile', 'Gestibile', '#4CAF50'),
+            ('delta_capability', 'Delta', '#FF9800')
+        ]
+
+        for i, (key, label, color) in enumerate(capability_indicators):
+            card = ttk.Frame(capability_section)
+            card.grid(row=0, column=i, padx=5, pady=2, sticky='ew')
+            capability_section.columnconfigure(i, weight=1)
+
+            ttk.Label(card, text=label, font=('Arial', 8)).pack()
+            value_label = ttk.Label(card, text="--", font=('Arial', 14, 'bold'),
+                                   foreground=color)
+            value_label.pack()
+            self.summary_labels[key] = value_label
+
+        # Sezione Copertura
+        coverage_section = ttk.LabelFrame(self.summary_grid, text="Performance", padding=5)
+        coverage_section.grid(row=0, column=4, padx=5, pady=5, sticky='ew')
+        self.summary_grid.columnconfigure(4, weight=1)
+
+        coverage_card = ttk.Frame(coverage_section)
+        coverage_card.pack(padx=5, pady=2)
+
+        ttk.Label(coverage_card, text="Copertura Media", font=('Arial', 8)).pack()
+        value_label = ttk.Label(coverage_card, text="--", font=('Arial', 14, 'bold'),
+                               foreground='#9C27B0')
+        value_label.pack()
+        self.summary_labels['coverage'] = value_label
 
     def on_vista_change(self, event=None):
         """Gestisce cambio vista riepilogo"""
