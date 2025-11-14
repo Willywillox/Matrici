@@ -120,14 +120,38 @@ class CapabilityDashboard(ttk.Frame):
         ttk.Button(row2, text="📊 Esporta Excel", command=self.export_excel,
                   width=15).pack(side='left', padx=5)
 
+        # Row 3: Vista riepilogo
+        row3 = ttk.Frame(control_frame)
+        row3.pack(fill='x', pady=5)
+
+        ttk.Label(row3, text="Vista Riepilogo:", font=('Arial', 10, 'bold')).pack(side='left', padx=5)
+        self.vista_var = tk.StringVar(value='Totale')
+        self.vista_combo = ttk.Combobox(row3, textvariable=self.vista_var,
+                                        values=['Totale', 'Settimana', 'Mese'],
+                                        width=15, state='readonly')
+        self.vista_combo.pack(side='left', padx=5)
+        self.vista_combo.bind('<<ComboboxSelected>>', self.on_vista_change)
+
+        # Selettori periodo (inizialmente nascosti)
+        self.week_label = ttk.Label(row3, text="Settimana:")
+        self.week_var = tk.StringVar()
+        self.week_combo = ttk.Combobox(row3, textvariable=self.week_var, width=30, state='readonly')
+        self.week_combo.bind('<<ComboboxSelected>>', lambda e: self.update_summary_by_period())
+
+        self.month_label = ttk.Label(row3, text="Mese:")
+        self.month_var = tk.StringVar()
+        self.month_combo = ttk.Combobox(row3, textvariable=self.month_var, width=20, state='readonly')
+        self.month_combo.bind('<<ComboboxSelected>>', lambda e: self.update_summary_by_period())
+
         # === PANNELLO SUMMARY ===
-        summary_frame = ttk.LabelFrame(self, text="Riepilogo Giornata", padding=10)
-        summary_frame.pack(fill='x', padx=10, pady=5)
+        self.summary_frame = ttk.LabelFrame(self, text="Riepilogo", padding=10)
+        self.summary_frame.pack(fill='x', padx=10, pady=5)
 
         self.summary_labels = {}
+        self.summary_grid = None  # Sarà creato dinamicamente
 
-        summary_grid = ttk.Frame(summary_frame)
-        summary_grid.pack(fill='x')
+        # Crea vista iniziale (Totale)
+        self.create_summary_totale()
 
         # Sezione FTE
         fte_section = ttk.LabelFrame(summary_grid, text="FTE", padding=5)
@@ -1034,6 +1058,285 @@ Operatori in Produzione: {in_prod}
         """
 
         messagebox.showinfo("Dettaglio Fascia", detail_msg.strip())
+
+    def create_summary_totale(self):
+        """Crea vista riepilogo totale (quella attuale)"""
+        # Pulisci contenuto precedente
+        if self.summary_grid:
+            self.summary_grid.destroy()
+
+        self.summary_grid = ttk.Frame(self.summary_frame)
+        self.summary_grid.pack(fill='x')
+
+        # Le sezioni sono già create sotto nel codice esistente
+        # Questo metodo serve solo per compatibilità
+
+    def on_vista_change(self, event=None):
+        """Gestisce cambio vista riepilogo"""
+        vista = self.vista_var.get()
+
+        # Nascondi tutti i selettori periodo
+        self.week_label.pack_forget()
+        self.week_combo.pack_forget()
+        self.month_label.pack_forget()
+        self.month_combo.pack_forget()
+
+        if vista == 'Totale':
+            # Vista totale - nessun selettore
+            self.create_summary_totale()
+            if self.current_data is not None:
+                self.update_summary(self.current_data)
+
+        elif vista == 'Settimana':
+            # Mostra selettore settimana
+            self.week_label.pack(side='left', padx=(20, 5))
+            self.week_combo.pack(side='left', padx=5)
+            self.populate_weeks()
+            self.create_summary_by_day()
+
+        elif vista == 'Mese':
+            # Mostra selettore mese
+            self.month_label.pack(side='left', padx=(20, 5))
+            self.month_combo.pack(side='left', padx=5)
+            self.populate_months()
+            self.create_summary_by_day()
+
+    def populate_weeks(self):
+        """Popola lista settimane disponibili in base ai dati"""
+        if self.current_data is None or self.current_data.empty:
+            return
+
+        # Ottieni date univoche
+        dates = pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date.unique()
+        weeks = {}
+
+        for date in sorted(dates):
+            # Calcola inizio settimana (lunedì)
+            week_start = date - timedelta(days=date.weekday())
+            week_end = week_start + timedelta(days=4)  # Venerdì
+
+            week_key = week_start.strftime('%Y-%m-%d')
+            week_label = f"{week_start.strftime('%d/%m/%Y')} - {week_end.strftime('%d/%m/%Y')}"
+            weeks[week_key] = week_label
+
+        if weeks:
+            self.week_combo['values'] = list(weeks.values())
+            self.week_combo.set(list(weeks.values())[0])  # Seleziona prima settimana
+            # Salva mapping per uso futuro
+            self.week_mapping = {v: k for k, v in weeks.items()}
+
+    def populate_months(self):
+        """Popola lista mesi disponibili in base ai dati"""
+        if self.current_data is None or self.current_data.empty:
+            return
+
+        # Ottieni mesi univoci
+        dates = pd.to_datetime(self.current_data['Fascia_Oraria'])
+        months = dates.dt.to_period('M').unique()
+
+        month_labels = []
+        self.month_mapping = {}
+
+        for month in sorted(months):
+            month_start = month.to_timestamp()
+            month_label = month_start.strftime('%B %Y')  # es. "Novembre 2024"
+            month_key = month_start.strftime('%Y-%m')
+            month_labels.append(month_label)
+            self.month_mapping[month_label] = month_key
+
+        if month_labels:
+            self.month_combo['values'] = month_labels
+            self.month_combo.set(month_labels[0])  # Seleziona primo mese
+
+    def create_summary_by_day(self):
+        """Crea vista riepilogo per giorno (settimana/mese)"""
+        # Pulisci contenuto precedente
+        if self.summary_grid:
+            self.summary_grid.destroy()
+
+        # Crea frame con scrollbar per giorni
+        canvas_frame = ttk.Frame(self.summary_frame)
+        canvas_frame.pack(fill='both', expand=True)
+
+        canvas = tk.Canvas(canvas_frame, height=200)
+        scrollbar = ttk.Scrollbar(canvas_frame, orient='horizontal', command=canvas.xview)
+        self.summary_grid = ttk.Frame(canvas)
+
+        canvas.create_window((0, 0), window=self.summary_grid, anchor='nw')
+        canvas.configure(xscrollcommand=scrollbar.set)
+
+        canvas.pack(side='top', fill='both', expand=True)
+        scrollbar.pack(side='bottom', fill='x')
+
+        # Aggiorna canvas quando cambia dimensione
+        self.summary_grid.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
+
+        # Popola con dati
+        self.update_summary_by_period()
+
+    def update_summary_by_period(self):
+        """Aggiorna riepilogo in base a periodo selezionato"""
+        if self.current_data is None or self.current_data.empty:
+            return
+
+        vista = self.vista_var.get()
+
+        # Pulisci grid
+        for widget in self.summary_grid.winfo_children():
+            widget.destroy()
+
+        if vista == 'Settimana':
+            selected_week = self.week_var.get()
+            if not selected_week or not hasattr(self, 'week_mapping'):
+                return
+
+            week_start_str = self.week_mapping.get(selected_week)
+            if not week_start_str:
+                return
+
+            week_start = datetime.strptime(week_start_str, '%Y-%m-%d').date()
+            self._render_week_summary(week_start)
+
+        elif vista == 'Mese':
+            selected_month = self.month_var.get()
+            if not selected_month or not hasattr(self, 'month_mapping'):
+                return
+
+            month_key = self.month_mapping.get(selected_month)
+            if not month_key:
+                return
+
+            self._render_month_summary(month_key)
+
+    def _render_week_summary(self, week_start):
+        """Renderizza riepilogo settimana con dettaglio per giorno"""
+        giorni_settimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven']
+
+        # Header con giorni
+        for col, giorno in enumerate(giorni_settimana):
+            date = week_start + timedelta(days=col)
+            header = ttk.Label(self.summary_grid,
+                             text=f"{giorno}\n{date.strftime('%d/%m')}",
+                             font=('Arial', 9, 'bold'))
+            header.grid(row=0, column=col, padx=5, pady=5, sticky='ew')
+
+        # Colonna TOTALE
+        ttk.Label(self.summary_grid, text="TOTALE\nSettimana",
+                 font=('Arial', 10, 'bold'), foreground='#2196F3').grid(
+            row=0, column=len(giorni_settimana), padx=10, pady=5, sticky='ew')
+
+        # Indicatori principali
+        indicators = ['FTE', 'Volumi', 'Gestibile', 'Ore Prod.', 'Copertura %']
+
+        totali = {ind: 0 for ind in indicators}
+
+        for row_idx, indicator in enumerate(indicators, start=1):
+            # Label indicatore
+            ttk.Label(self.summary_grid, text=indicator,
+                     font=('Arial', 8, 'bold')).grid(
+                row=row_idx, column=-1, padx=5, pady=2, sticky='w')
+
+            # Valori per ogni giorno
+            for col, giorno in enumerate(giorni_settimana):
+                date = week_start + timedelta(days=col)
+                date_str = date.strftime('%Y-%m-%d')
+
+                # Filtra dati per questo giorno
+                df_day = self.current_data[
+                    pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date == date
+                ]
+
+                # Calcola valore indicatore
+                value = self._calc_indicator_value(df_day, indicator)
+                totali[indicator] += value
+
+                # Mostra valore
+                ttk.Label(self.summary_grid, text=f"{value:.1f}").grid(
+                    row=row_idx, column=col, padx=5, pady=2)
+
+            # Mostra totale
+            ttk.Label(self.summary_grid, text=f"{totali[indicator]:.1f}",
+                     font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
+                row=row_idx, column=len(giorni_settimana), padx=10, pady=2)
+
+    def _render_month_summary(self, month_key):
+        """Renderizza riepilogo mese con dettaglio per giorno"""
+        year, month = map(int, month_key.split('-'))
+        month_start = datetime(year, month, 1).date()
+
+        # Calcola numero giorni nel mese
+        import calendar
+        num_days = calendar.monthrange(year, month)[1]
+
+        # Header con giorni (mostra solo primi 10 caratteri per risparmiare spazio)
+        for day in range(1, num_days + 1):
+            date = datetime(year, month, day).date()
+            day_name = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'][date.weekday()]
+
+            header = ttk.Label(self.summary_grid,
+                             text=f"{day_name}\n{day:02d}",
+                             font=('Arial', 8))
+            header.grid(row=0, column=day-1, padx=2, pady=5, sticky='ew')
+
+        # Colonna TOTALE
+        ttk.Label(self.summary_grid, text="TOT\nMese",
+                 font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
+            row=0, column=num_days, padx=5, pady=5, sticky='ew')
+
+        # Indicatori
+        indicators = ['FTE', 'Vol.', 'Gest.', 'Ore', 'Cop.%']
+        totali = {ind: 0 for ind in indicators}
+
+        for row_idx, indicator in enumerate(indicators, start=1):
+            # Label
+            ttk.Label(self.summary_grid, text=indicator,
+                     font=('Arial', 8, 'bold')).grid(
+                row=row_idx, column=-1, padx=5, pady=2, sticky='w')
+
+            # Valori per ogni giorno
+            for day in range(1, num_days + 1):
+                date = datetime(year, month, day).date()
+
+                # Filtra dati
+                df_day = self.current_data[
+                    pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date == date
+                ]
+
+                value = self._calc_indicator_value(df_day, indicator)
+                totali[indicator] += value
+
+                if value > 0:
+                    ttk.Label(self.summary_grid, text=f"{value:.0f}",
+                             font=('Arial', 7)).grid(
+                        row=row_idx, column=day-1, padx=2, pady=1)
+
+            # Totale
+            ttk.Label(self.summary_grid, text=f"{totali[indicator]:.0f}",
+                     font=('Arial', 8, 'bold'), foreground='#2196F3').grid(
+                row=row_idx, column=num_days, padx=5, pady=2)
+
+    def _calc_indicator_value(self, df, indicator):
+        """Calcola valore indicatore per un dataframe"""
+        if df.empty:
+            return 0
+
+        if indicator in ['FTE']:
+            return df['FTE_Effettivi'].sum() if 'FTE_Effettivi' in df.columns else 0
+        elif indicator in ['Volumi', 'Vol.']:
+            return df['Volumi_Attesi'].sum() if 'Volumi_Attesi' in df.columns else 0
+        elif indicator in ['Gestibile', 'Gest.']:
+            return df['Gestibile_Chiamate'].sum() if 'Gestibile_Chiamate' in df.columns else 0
+        elif indicator in ['Ore Prod.', 'Ore']:
+            ore_per_fascia = 0.25  # Default
+            return df['In_Produzione'].sum() * ore_per_fascia if 'In_Produzione' in df.columns else 0
+        elif indicator in ['Copertura %', 'Cop.%']:
+            if 'In_Produzione' in df.columns and 'Agenti_Richiesti' in df.columns:
+                prod = df['In_Produzione'].sum()
+                rich = df['Agenti_Richiesti'].sum()
+                return (prod / rich * 100) if rich > 0 else 100
+            return 0
+
+        return 0
 
     def export_excel(self):
         """Esporta i dati in Excel"""
