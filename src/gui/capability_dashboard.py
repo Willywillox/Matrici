@@ -551,6 +551,17 @@ class CapabilityDashboard(ttk.Frame):
             # Aggiorna summary
             self.update_summary(df_capability)
 
+            # Aggiorna anche viste settimana/mese se selezionate
+            vista = self.vista_var.get()
+            if vista == 'Settimana':
+                self.populate_weeks()
+                if hasattr(self, 'week_mapping') and self.week_var.get():
+                    self.update_summary_by_period()
+            elif vista == 'Mese':
+                self.populate_months()
+                if hasattr(self, 'month_mapping') and self.month_var.get():
+                    self.update_summary_by_period()
+
             # Aggiorna lista skill
             skills = ['Tutti'] + sorted(df_capability['Skill'].unique().tolist())
             self.skill_combo['values'] = skills
@@ -1184,18 +1195,26 @@ Operatori in Produzione: {in_prod}
 
     def update_summary_by_period(self):
         """Aggiorna riepilogo in base a periodo selezionato"""
-        if self.current_data is None or self.current_data.empty:
-            return
-
-        vista = self.vista_var.get()
-
         # Pulisci grid
         for widget in self.summary_grid.winfo_children():
             widget.destroy()
 
+        if self.current_data is None or self.current_data.empty:
+            # Mostra messaggio che invita a fare refresh
+            ttk.Label(self.summary_grid,
+                     text="Nessun dato disponibile.\nClicca su '🔄 Aggiorna' per caricare i dati.",
+                     font=('Arial', 12),
+                     foreground='#FF9800').pack(padx=20, pady=20)
+            return
+
+        vista = self.vista_var.get()
+
         if vista == 'Settimana':
             selected_week = self.week_var.get()
             if not selected_week or not hasattr(self, 'week_mapping'):
+                ttk.Label(self.summary_grid,
+                         text="Seleziona una settimana dal menu sopra.",
+                         font=('Arial', 10)).pack(padx=20, pady=20)
                 return
 
             week_start_str = self.week_mapping.get(selected_week)
@@ -1208,6 +1227,9 @@ Operatori in Produzione: {in_prod}
         elif vista == 'Mese':
             selected_month = self.month_var.get()
             if not selected_month or not hasattr(self, 'month_mapping'):
+                ttk.Label(self.summary_grid,
+                         text="Seleziona un mese dal menu sopra.",
+                         font=('Arial', 10)).pack(padx=20, pady=20)
                 return
 
             month_key = self.month_mapping.get(selected_month)
