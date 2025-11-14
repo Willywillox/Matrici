@@ -1242,18 +1242,21 @@ Operatori in Produzione: {in_prod}
         """Renderizza riepilogo settimana con dettaglio per giorno"""
         giorni_settimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven']
 
-        # Header con giorni
-        for col, giorno in enumerate(giorni_settimana):
-            date = week_start + timedelta(days=col)
+        # Colonna 0 vuota (per le label indicatori)
+        ttk.Label(self.summary_grid, text="").grid(row=0, column=0, padx=5, pady=5)
+
+        # Header con giorni (colonne 1-5)
+        for idx, giorno in enumerate(giorni_settimana):
+            date = week_start + timedelta(days=idx)
             header = ttk.Label(self.summary_grid,
                              text=f"{giorno}\n{date.strftime('%d/%m')}",
                              font=('Arial', 9, 'bold'))
-            header.grid(row=0, column=col, padx=5, pady=5, sticky='ew')
+            header.grid(row=0, column=idx+1, padx=5, pady=5, sticky='ew')
 
-        # Colonna TOTALE
+        # Colonna TOTALE (colonna 6)
         ttk.Label(self.summary_grid, text="TOTALE\nSettimana",
                  font=('Arial', 10, 'bold'), foreground='#2196F3').grid(
-            row=0, column=len(giorni_settimana), padx=10, pady=5, sticky='ew')
+            row=0, column=len(giorni_settimana)+1, padx=10, pady=5, sticky='ew')
 
         # Indicatori principali
         indicators = ['FTE', 'Volumi', 'Gestibile', 'Ore Prod.', 'Copertura %']
@@ -1261,14 +1264,14 @@ Operatori in Produzione: {in_prod}
         totali = {ind: 0 for ind in indicators}
 
         for row_idx, indicator in enumerate(indicators, start=1):
-            # Label indicatore
+            # Label indicatore (colonna 0)
             ttk.Label(self.summary_grid, text=indicator,
                      font=('Arial', 8, 'bold')).grid(
-                row=row_idx, column=-1, padx=5, pady=2, sticky='w')
+                row=row_idx, column=0, padx=5, pady=2, sticky='e')
 
-            # Valori per ogni giorno
-            for col, giorno in enumerate(giorni_settimana):
-                date = week_start + timedelta(days=col)
+            # Valori per ogni giorno (colonne 1-5)
+            for idx, giorno in enumerate(giorni_settimana):
+                date = week_start + timedelta(days=idx)
                 date_str = date.strftime('%Y-%m-%d')
 
                 # Filtra dati per questo giorno
@@ -1282,12 +1285,12 @@ Operatori in Produzione: {in_prod}
 
                 # Mostra valore
                 ttk.Label(self.summary_grid, text=f"{value:.1f}").grid(
-                    row=row_idx, column=col, padx=5, pady=2)
+                    row=row_idx, column=idx+1, padx=5, pady=2)
 
-            # Mostra totale
+            # Mostra totale (colonna 6)
             ttk.Label(self.summary_grid, text=f"{totali[indicator]:.1f}",
                      font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
-                row=row_idx, column=len(giorni_settimana), padx=10, pady=2)
+                row=row_idx, column=len(giorni_settimana)+1, padx=10, pady=2)
 
     def _render_month_summary(self, month_key):
         """Renderizza riepilogo mese con dettaglio per giorno"""
@@ -1298,7 +1301,10 @@ Operatori in Produzione: {in_prod}
         import calendar
         num_days = calendar.monthrange(year, month)[1]
 
-        # Header con giorni (mostra solo primi 10 caratteri per risparmiare spazio)
+        # Colonna label indicatori (colonna 0)
+        ttk.Label(self.summary_grid, text="").grid(row=0, column=0, padx=2, pady=5)
+
+        # Header con giorni (colonne 1 a num_days)
         for day in range(1, num_days + 1):
             date = datetime(year, month, day).date()
             day_name = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'][date.weekday()]
@@ -1306,24 +1312,24 @@ Operatori in Produzione: {in_prod}
             header = ttk.Label(self.summary_grid,
                              text=f"{day_name}\n{day:02d}",
                              font=('Arial', 8))
-            header.grid(row=0, column=day-1, padx=2, pady=5, sticky='ew')
+            header.grid(row=0, column=day, padx=2, pady=5, sticky='ew')
 
-        # Colonna TOTALE
+        # Colonna TOTALE (colonna num_days + 1)
         ttk.Label(self.summary_grid, text="TOT\nMese",
                  font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
-            row=0, column=num_days, padx=5, pady=5, sticky='ew')
+            row=0, column=num_days+1, padx=5, pady=5, sticky='ew')
 
         # Indicatori
         indicators = ['FTE', 'Vol.', 'Gest.', 'Ore', 'Cop.%']
         totali = {ind: 0 for ind in indicators}
 
         for row_idx, indicator in enumerate(indicators, start=1):
-            # Label
+            # Label indicatore (colonna 0)
             ttk.Label(self.summary_grid, text=indicator,
                      font=('Arial', 8, 'bold')).grid(
-                row=row_idx, column=-1, padx=5, pady=2, sticky='w')
+                row=row_idx, column=0, padx=5, pady=2, sticky='e')
 
-            # Valori per ogni giorno
+            # Valori per ogni giorno (colonne 1 a num_days)
             for day in range(1, num_days + 1):
                 date = datetime(year, month, day).date()
 
@@ -1338,12 +1344,12 @@ Operatori in Produzione: {in_prod}
                 if value > 0:
                     ttk.Label(self.summary_grid, text=f"{value:.0f}",
                              font=('Arial', 7)).grid(
-                        row=row_idx, column=day-1, padx=2, pady=1)
+                        row=row_idx, column=day, padx=2, pady=1)
 
-            # Totale
+            # Totale (colonna num_days + 1)
             ttk.Label(self.summary_grid, text=f"{totali[indicator]:.0f}",
                      font=('Arial', 8, 'bold'), foreground='#2196F3').grid(
-                row=row_idx, column=num_days, padx=5, pady=2)
+                row=row_idx, column=num_days+1, padx=5, pady=2)
 
     def _calc_indicator_value(self, df, indicator):
         """Calcola valore indicatore per un dataframe"""
