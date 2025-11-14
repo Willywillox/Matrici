@@ -752,6 +752,11 @@ class CapabilityDashboard(ttk.Frame):
 
     def update_summary(self, df):
         """Aggiorna il pannello summary"""
+        # Se non siamo in vista Totale, non aggiornare (ha un layout diverso)
+        vista = self.vista_var.get()
+        if vista != 'Totale':
+            return
+
         if df is None or df.empty:
             # Mostra valori di default se non ci sono dati
             for key in ['total_fte', 'required_fte', 'delta_fte', 'volumi_attesi',
@@ -963,6 +968,9 @@ Operatori in Produzione: {in_prod}
         if self.summary_grid:
             self.summary_grid.destroy()
 
+        # Pulisci labels precedenti
+        self.summary_labels = {}
+
         self.summary_grid = ttk.Frame(self.summary_frame)
         self.summary_grid.pack(fill='x')
 
@@ -1150,6 +1158,9 @@ Operatori in Produzione: {in_prod}
         # Pulisci contenuto precedente
         if self.summary_grid:
             self.summary_grid.destroy()
+
+        # Pulisci labels precedenti (vista per giorno non li usa)
+        self.summary_labels = {}
 
         # Crea frame con scrollbar per giorni
         canvas_frame = ttk.Frame(self.summary_frame)
