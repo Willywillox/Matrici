@@ -975,9 +975,9 @@ Operatori in Produzione: {in_prod}
 
     def create_summary_totale(self):
         """Crea vista riepilogo totale (quella attuale)"""
-        # Pulisci contenuto precedente
-        if self.summary_grid:
-            self.summary_grid.destroy()
+        # Pulisci TUTTO il contenuto precedente del frame
+        for widget in self.summary_frame.winfo_children():
+            widget.destroy()
 
         # Pulisci labels precedenti
         self.summary_labels = {}
@@ -1166,9 +1166,9 @@ Operatori in Produzione: {in_prod}
 
     def create_summary_by_day(self):
         """Crea vista riepilogo per giorno (settimana/mese)"""
-        # Pulisci contenuto precedente
-        if self.summary_grid:
-            self.summary_grid.destroy()
+        # Pulisci TUTTO il contenuto precedente del frame
+        for widget in self.summary_frame.winfo_children():
+            widget.destroy()
 
         # Pulisci labels precedenti (vista per giorno non li usa)
         self.summary_labels = {}
