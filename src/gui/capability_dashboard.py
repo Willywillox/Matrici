@@ -620,22 +620,35 @@ class CapabilityDashboard(ttk.Frame):
 
         # Aggrega dati per (Fascia_Oraria, Skill) - somma tutti i valori numerici
         # I microskill selezionati sono già stati filtrati in apply_filter()
-        numeric_cols = ['Presenti', 'In_Pausa', 'In_Produzione', 'In_Straordinario',
+        numeric_cols_base = ['Presenti', 'In_Pausa', 'In_Produzione', 'In_Straordinario',
                        'FTE_Effettivi', 'FTE_Richiesti', 'Volumi_Attesi', 'Gestibile_Chiamate',
                        'Agenti_Richiesti', 'Produttivita_Oraria']
+
+        # Filtra solo colonne che esistono nel DataFrame
+        numeric_cols = [col for col in numeric_cols_base if col in df.columns]
 
         # Aggiungi colonne giustificativi dinamiche
         for tipologia in self.tipologie_giustificativi:
             if tipologia in df.columns:
                 numeric_cols.append(tipologia)
 
+        # Controlla che ci siano colonne da aggregare
+        if not numeric_cols:
+            print("[WARNING] Nessuna colonna numerica trovata per l'aggregazione")
+            return
+
         # Raggruppa e aggrega
         df_aggregato = df.groupby(['Fascia_Oraria', 'Skill'], as_index=False)[numeric_cols].sum()
 
-        # Ricalcola metriche percentuali dopo aggregazione
-        df_aggregato['Capability_%'] = (df_aggregato['Gestibile_Chiamate'] / df_aggregato['Volumi_Attesi'] * 100).fillna(0)
-        df_aggregato['Copertura_%'] = (df_aggregato['In_Produzione'] / df_aggregato['Agenti_Richiesti'] * 100).fillna(100).clip(upper=100)
-        df_aggregato['Delta_FTE'] = df_aggregato['FTE_Effettivi'] - df_aggregato['FTE_Richiesti']
+        # Ricalcola metriche percentuali dopo aggregazione (solo se le colonne esistono)
+        if 'Gestibile_Chiamate' in df_aggregato.columns and 'Volumi_Attesi' in df_aggregato.columns:
+            df_aggregato['Capability_%'] = (df_aggregato['Gestibile_Chiamate'] / df_aggregato['Volumi_Attesi'] * 100).fillna(0)
+
+        if 'In_Produzione' in df_aggregato.columns and 'Agenti_Richiesti' in df_aggregato.columns:
+            df_aggregato['Copertura_%'] = (df_aggregato['In_Produzione'] / df_aggregato['Agenti_Richiesti'] * 100).fillna(100).clip(upper=100)
+
+        if 'FTE_Effettivi' in df_aggregato.columns and 'FTE_Richiesti' in df_aggregato.columns:
+            df_aggregato['Delta_FTE'] = df_aggregato['FTE_Effettivi'] - df_aggregato['FTE_Richiesti']
 
         for _, row in df_aggregato.iterrows():
             # Estrai dati con gestione errori
