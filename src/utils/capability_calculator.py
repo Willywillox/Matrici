@@ -336,9 +336,9 @@ class CapabilityCalculator:
         )
 
         # Calcola delta e copertura
-        df_merged['Volumi_Attesi'].fillna(0, inplace=True)
-        df_merged['FTE_Richiesti'].fillna(0, inplace=True)
-        df_merged['Produttivita_Target'].fillna(1, inplace=True)
+        df_merged['Volumi_Attesi'] = df_merged['Volumi_Attesi'].fillna(0)
+        df_merged['FTE_Richiesti'] = df_merged['FTE_Richiesti'].fillna(0)
+        df_merged['Produttivita_Target'] = df_merged['Produttivita_Target'].fillna(1)
 
         # === CALCOLO ERLANG C ===
         # Se abbiamo configurazione Erlang e volumi previsti, ricalcola FTE_Richiesti
