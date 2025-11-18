@@ -119,6 +119,8 @@ class CapabilityDashboard(ttk.Frame):
                   width=15).pack(side='left', padx=(20, 5))
         ttk.Button(row2, text="📊 Esporta Excel", command=self.export_excel,
                   width=15).pack(side='left', padx=5)
+        ttk.Button(row2, text="⏸️ Modifica Pause", command=self.open_pause_editor,
+                  width=18).pack(side='left', padx=5)
 
         # Row 3: Vista riepilogo
         row3 = ttk.Frame(control_frame)
@@ -1500,6 +1502,16 @@ Operatori in Produzione: {in_prod}
             return 100
 
         return 0
+
+    def open_pause_editor(self):
+        """Apre dialog per modificare le pause"""
+        from .pause_editor_dialog import PauseEditorDialog
+        dialog = PauseEditorDialog(self, self.db_manager)
+        self.wait_window(dialog)
+
+        # Dopo chiusura dialog, aggiorna i dati se necessario
+        if hasattr(dialog, 'modified') and dialog.modified:
+            self.refresh_data()
 
     def export_excel(self):
         """Esporta i dati in Excel"""
