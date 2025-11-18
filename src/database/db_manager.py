@@ -6,29 +6,57 @@ import sqlite3
 import os
 from datetime import datetime, timedelta
 import pandas as pd
+from .db_config import DatabaseConfig
 
 
 class DatabaseManager:
     """Gestisce le operazioni sul database"""
 
-    def __init__(self, db_path='data/operator_overtime.accdb'):
-        self.db_path = db_path
+    def __init__(self, db_path=None, config_path='database_config.ini'):
+        # Se non viene passato un path, usa la configurazione
+        if db_path is None:
+            self.config = DatabaseConfig(config_path)
+            self.db_path = self.config.db_path
+            self._db_type_from_config = self.config.db_type
+        else:
+            self.config = None
+            self.db_path = db_path
+            self._db_type_from_config = None
+
         self.conn = None
-        self.is_sqlite = db_path.endswith('.db')
+        self.is_sqlite = self.db_path.endswith('.db')
 
     def connect(self):
         """Stabilisce la connessione al database"""
         try:
-            if self.is_sqlite:
+            # Usa il tipo dal config se disponibile
+            if self.config and self._db_type_from_config:
+                db_type = self._db_type_from_config
+            else:
+                db_type = 'sqlite' if self.is_sqlite else 'access'
+
+            if db_type == 'sqlite':
+                # Crea directory se non esiste
+                db_dir = os.path.dirname(self.db_path)
+                if db_dir and not os.path.exists(db_dir):
+                    os.makedirs(db_dir)
+
                 self.conn = sqlite3.connect(self.db_path)
                 # Configura row_factory per accedere alle colonne per nome
                 self.conn.row_factory = sqlite3.Row
-            else:
+                self.is_sqlite = True
+            elif db_type == 'access':
                 conn_str = (
                     r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
                     f'DBQ={os.path.abspath(self.db_path)};'
                 )
                 self.conn = pyodbc.connect(conn_str)
+                self.is_sqlite = False
+            elif db_type == 'sqlserver':
+                conn_str = self.config.get_connection_string()
+                self.conn = pyodbc.connect(conn_str)
+                self.is_sqlite = False
+
             return True
         except Exception as e:
             print(f"Errore connessione database: {e}")
@@ -36,8 +64,17 @@ class DatabaseManager:
             if not self.is_sqlite:
                 self.db_path = self.db_path.replace('.accdb', '.db')
                 self.is_sqlite = True
+                self._db_type_from_config = 'sqlite'
                 return self.connect()
             return False
+
+    def get_db_info(self):
+        """Ritorna informazioni sul database corrente"""
+        return {
+            'path': self.db_path,
+            'type': 'SQLite' if self.is_sqlite else 'Access/SQL Server',
+            'connected': self.conn is not None
+        }
 
     def close(self):
         """Chiude la connessione al database"""

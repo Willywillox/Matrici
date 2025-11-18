@@ -20,6 +20,7 @@ from gui.riepilogo_screen import RiepilogoScreen
 from gui.erlang_config_tab import ErlangConfigTab
 from gui.templates_tab import TemplatesTab
 from gui.week_summary_tab import WeekSummaryTab
+from gui.database_config_dialog import DatabaseConfigDialog
 
 
 class MatriciApp:
@@ -76,6 +77,17 @@ class MatriciApp:
         except Exception as e:
             messagebox.showerror("Errore", f"Errore nella creazione database:\n{e}")
 
+    def open_db_config(self):
+        """Apre il dialog di configurazione database"""
+        dialog = DatabaseConfigDialog(self.root, self.db_manager)
+        self.root.wait_window(dialog)
+
+        if dialog.result:
+            # La configurazione e' stata salvata, informa l'utente
+            messagebox.showinfo("Configurazione Database",
+                              "Configurazione salvata.\n\n"
+                              "Riavviare l'applicazione per applicare le modifiche.")
+
     def setup_styles(self):
         """Configura stili ttk"""
         style = ttk.Style()
@@ -109,6 +121,8 @@ class MatriciApp:
         # Menu Database
         db_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Database", menu=db_menu)
+        db_menu.add_command(label="Configurazione Database...", command=self.open_db_config)
+        db_menu.add_separator()
         db_menu.add_command(label="Inizializza Database", command=self.init_database)
         db_menu.add_command(label="Importa Dati Test", command=self.import_test_data)
         db_menu.add_command(label="Info Database", command=self.show_db_info)
