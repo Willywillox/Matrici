@@ -105,11 +105,11 @@ class WeekSummaryTab(ttk.Frame):
         self.tree.heading('Skill', text='Skill')
         self.tree.heading('Microskill', text='Microskill')
 
-        self.tree.column('ID_SAP', width=70, anchor='center', minwidth=70)
-        self.tree.column('Nome', width=100, minwidth=80)
-        self.tree.column('Cognome', width=100, minwidth=80)
-        self.tree.column('Skill', width=80, minwidth=60)
-        self.tree.column('Microskill', width=80, minwidth=60)
+        self.tree.column('ID_SAP', width=80, anchor='center', minwidth=80)
+        self.tree.column('Nome', width=120, minwidth=100)
+        self.tree.column('Cognome', width=120, minwidth=100)
+        self.tree.column('Skill', width=100, minwidth=80)
+        self.tree.column('Microskill', width=100, minwidth=80)
 
         # Headers e larghezze colonne giorni
         for giorno in giorni:
@@ -118,10 +118,10 @@ class WeekSummaryTab(ttk.Frame):
             self.tree.heading(f'{giorno}_Giust', text=f'{giorno} Giust')
             self.tree.heading(f'{giorno}_Pausa', text=f'{giorno} Pausa')
 
-            self.tree.column(f'{giorno}_Turno', width=90, anchor='center', minwidth=80)
-            self.tree.column(f'{giorno}_Strao', width=60, anchor='center', minwidth=50)
-            self.tree.column(f'{giorno}_Giust', width=70, anchor='center', minwidth=50)
-            self.tree.column(f'{giorno}_Pausa', width=80, anchor='center', minwidth=60)
+            self.tree.column(f'{giorno}_Turno', width=110, anchor='center', minwidth=100)
+            self.tree.column(f'{giorno}_Strao', width=110, anchor='center', minwidth=100)
+            self.tree.column(f'{giorno}_Giust', width=150, anchor='center', minwidth=120)
+            self.tree.column(f'{giorno}_Pausa', width=110, anchor='center', minwidth=100)
 
         self.tree.pack(fill='both', expand=True)
 
@@ -227,7 +227,11 @@ class WeekSummaryTab(ttk.Frame):
                         SELECT Ora_Inizio_Turno, Ora_Fine_Turno,
                                Inizio_Strao_1, Fine_Strao_1,
                                Inizio_Pausa_1, Fine_Pausa_1,
-                               Tipo_Giust_1, Tipo_Giust_2, Tipo_Giust_3, Tipo_Giust_4, Tipo_Giust_5
+                               Tipo_Giust_1, Inizio_Giust_1, Fine_Giust_1,
+                               Tipo_Giust_2, Inizio_Giust_2, Fine_Giust_2,
+                               Tipo_Giust_3, Inizio_Giust_3, Fine_Giust_3,
+                               Tipo_Giust_4, Inizio_Giust_4, Fine_Giust_4,
+                               Tipo_Giust_5, Inizio_Giust_5, Fine_Giust_5
                         FROM Anagrafica_Operatori
                         WHERE ID_SAP = ? AND Data_Riferimento = ?
                     """, (id_sap, date_str))
@@ -235,7 +239,11 @@ class WeekSummaryTab(ttk.Frame):
                     if turno_result and turno_result[0]:
                         (ora_inizio, ora_fine, strao_inizio, strao_fine,
                          pausa_inizio, pausa_fine,
-                         giust1, giust2, giust3, giust4, giust5) = turno_result[0]
+                         giust1_tipo, giust1_inizio, giust1_fine,
+                         giust2_tipo, giust2_inizio, giust2_fine,
+                         giust3_tipo, giust3_inizio, giust3_fine,
+                         giust4_tipo, giust4_inizio, giust4_fine,
+                         giust5_tipo, giust5_inizio, giust5_fine) = turno_result[0]
 
                         # Turno
                         if ora_inizio and ora_fine:
@@ -257,8 +265,18 @@ class WeekSummaryTab(ttk.Frame):
                         else:
                             pausa_str = ""
 
-                        # Giustificativi
-                        giustificativi = [g for g in [giust1, giust2, giust3, giust4, giust5] if g]
+                        # Giustificativi con orari
+                        giustificativi = []
+                        for tipo, inizio, fine in [(giust1_tipo, giust1_inizio, giust1_fine),
+                                                    (giust2_tipo, giust2_inizio, giust2_fine),
+                                                    (giust3_tipo, giust3_inizio, giust3_fine),
+                                                    (giust4_tipo, giust4_inizio, giust4_fine),
+                                                    (giust5_tipo, giust5_inizio, giust5_fine)]:
+                            if tipo:
+                                if inizio and fine:
+                                    giustificativi.append(f"{tipo} ({self._format_time(inizio)}-{self._format_time(fine)})")
+                                else:
+                                    giustificativi.append(tipo)
                         giust_str = ", ".join(giustificativi) if giustificativi else ""
                     else:
                         turno_str = ""
