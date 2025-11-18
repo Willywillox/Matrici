@@ -220,17 +220,20 @@ class WeekSummaryTab(ttk.Frame):
 
                 # Per ogni giorno della settimana
                 for date_str in dates:
-                    # Ottieni dati turno
+                    # Ottieni dati turno e giustificativi
                     turno_result = self.db_manager.execute_query("""
                         SELECT Ora_Inizio_Turno, Ora_Fine_Turno,
                                Inizio_Strao_1, Fine_Strao_1,
-                               Inizio_Pausa_1, Fine_Pausa_1
+                               Inizio_Pausa_1, Fine_Pausa_1,
+                               Tipo_Giust_1, Tipo_Giust_2, Tipo_Giust_3, Tipo_Giust_4, Tipo_Giust_5
                         FROM Anagrafica_Operatori
                         WHERE ID_SAP = ? AND Data_Riferimento = ?
                     """, (id_sap, date_str))
 
                     if turno_result and turno_result[0]:
-                        ora_inizio, ora_fine, strao_inizio, strao_fine, pausa_inizio, pausa_fine = turno_result[0]
+                        (ora_inizio, ora_fine, strao_inizio, strao_fine,
+                         pausa_inizio, pausa_fine,
+                         giust1, giust2, giust3, giust4, giust5) = turno_result[0]
 
                         # Turno
                         if ora_inizio and ora_fine:
@@ -251,21 +254,14 @@ class WeekSummaryTab(ttk.Frame):
                             pausa_str = f"{self._format_time(pausa_inizio)}-{self._format_time(pausa_fine)}"
                         else:
                             pausa_str = ""
+
+                        # Giustificativi
+                        giustificativi = [g for g in [giust1, giust2, giust3, giust4, giust5] if g]
+                        giust_str = ", ".join(giustificativi) if giustificativi else ""
                     else:
                         turno_str = ""
                         strao_str = ""
                         pausa_str = ""
-
-                    # Giustificativi per questo giorno
-                    giust_result = self.db_manager.execute_query("""
-                        SELECT Tipologia
-                        FROM Giustificativi
-                        WHERE ID_SAP = ? AND Data = ?
-                    """, (id_sap, date_str))
-
-                    if giust_result:
-                        giust_str = ", ".join([g[0] for g in giust_result if g[0]])
-                    else:
                         giust_str = ""
 
                     row_data.extend([turno_str, strao_str, giust_str, pausa_str])
