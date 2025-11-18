@@ -221,7 +221,8 @@ class PauseEditorDialog(tk.Toplevel):
                     a.Microskill,
                     a.Ora_Inizio_Turno,
                     a.Ora_Fine_Turno,
-                    a.Pausa
+                    a.Inizio_Pausa_1,
+                    a.Fine_Pausa_1
                 FROM Anagrafica_Operatori a
                 WHERE a.Data_Riferimento = ?
             """
@@ -250,10 +251,13 @@ class PauseEditorDialog(tk.Toplevel):
 
             if result:
                 for row in result:
-                    id_sap, nome, cognome, skill_op, microskill_op, ora_inizio, ora_fine, pausa = row
+                    id_sap, nome, cognome, skill_op, microskill_op, ora_inizio, ora_fine, pausa_inizio, pausa_fine = row
 
                     # Formatta pausa attuale
-                    pausa_str = pausa if pausa else ""
+                    if pausa_inizio and pausa_fine:
+                        pausa_str = f"{self._format_time(pausa_inizio)}-{self._format_time(pausa_fine)}"
+                    else:
+                        pausa_str = ""
 
                     # Inserisci nella tabella
                     item_id = self.tree.insert('', 'end', values=(
@@ -349,12 +353,22 @@ class PauseEditorDialog(tk.Toplevel):
             count = 0
 
             for op in modifications:
+                # Parse nuova pausa (formato HH:MM-HH:MM)
+                nuova_pausa = op['nuova_pausa']
+                if nuova_pausa and '-' in nuova_pausa:
+                    parts = nuova_pausa.split('-')
+                    pausa_inizio = parts[0].strip()
+                    pausa_fine = parts[1].strip() if len(parts) > 1 else None
+                else:
+                    pausa_inizio = None
+                    pausa_fine = None
+
                 # Aggiorna pausa nel database
                 self.db_manager.execute_update("""
                     UPDATE Anagrafica_Operatori
-                    SET Pausa = ?
+                    SET Inizio_Pausa_1 = ?, Fine_Pausa_1 = ?
                     WHERE ID_SAP = ? AND Data_Riferimento = ?
-                """, (op['nuova_pausa'], op['id_sap'], op['data']))
+                """, (pausa_inizio, pausa_fine, op['id_sap'], op['data']))
                 count += 1
 
             self.db_manager.commit()
@@ -367,3 +381,20 @@ class PauseEditorDialog(tk.Toplevel):
             messagebox.showerror("Errore", f"Errore salvataggio modifiche:\n{e}")
             import traceback
             traceback.print_exc()
+
+    def _format_time(self, time_value):
+        """Formatta valore orario"""
+        if not time_value:
+            return ""
+
+        # Se è già stringa HH:MM
+        if isinstance(time_value, str):
+            if len(time_value) >= 5:
+                return time_value[:5]
+            return time_value
+
+        # Se è datetime
+        if hasattr(time_value, 'strftime'):
+            return time_value.strftime('%H:%M')
+
+        return str(time_value)
