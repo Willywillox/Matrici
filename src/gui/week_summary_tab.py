@@ -223,14 +223,14 @@ class WeekSummaryTab(ttk.Frame):
                     # Ottieni dati turno
                     turno_result = self.db_manager.execute_query("""
                         SELECT Ora_Inizio_Turno, Ora_Fine_Turno,
-                               Ora_Inizio_Straordinario, Ora_Fine_Straordinario,
-                               Pausa
+                               Inizio_Strao_1, Fine_Strao_1,
+                               Inizio_Pausa_1, Fine_Pausa_1
                         FROM Anagrafica_Operatori
                         WHERE ID_SAP = ? AND Data_Riferimento = ?
                     """, (id_sap, date_str))
 
                     if turno_result and turno_result[0]:
-                        ora_inizio, ora_fine, strao_inizio, strao_fine, pausa = turno_result[0]
+                        ora_inizio, ora_fine, strao_inizio, strao_fine, pausa_inizio, pausa_fine = turno_result[0]
 
                         # Turno
                         if ora_inizio and ora_fine:
@@ -247,7 +247,10 @@ class WeekSummaryTab(ttk.Frame):
                             strao_str = ""
 
                         # Pausa
-                        pausa_str = pausa if pausa else ""
+                        if pausa_inizio and pausa_fine:
+                            pausa_str = f"{self._format_time(pausa_inizio)}-{self._format_time(pausa_fine)}"
+                        else:
+                            pausa_str = ""
                     else:
                         turno_str = ""
                         strao_str = ""
