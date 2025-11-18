@@ -1186,19 +1186,34 @@ Operatori in Produzione: {in_prod}
         # Pulisci labels precedenti (vista per giorno non li usa)
         self.summary_labels = {}
 
+        vista = self.vista_var.get()
+
         # Crea frame con scrollbar per giorni
         canvas_frame = ttk.Frame(self.summary_frame)
         canvas_frame.pack(fill='both', expand=True)
 
-        canvas = tk.Canvas(canvas_frame, height=200)
-        scrollbar = ttk.Scrollbar(canvas_frame, orient='horizontal', command=canvas.xview)
-        self.summary_grid = ttk.Frame(canvas)
+        if vista == 'Settimana':
+            # Per settimana: scrollbar verticale (molti indicatori, pochi giorni)
+            canvas = tk.Canvas(canvas_frame, height=300)
+            scrollbar = ttk.Scrollbar(canvas_frame, orient='vertical', command=canvas.yview)
+            self.summary_grid = ttk.Frame(canvas)
 
-        canvas.create_window((0, 0), window=self.summary_grid, anchor='nw')
-        canvas.configure(xscrollcommand=scrollbar.set)
+            canvas.create_window((0, 0), window=self.summary_grid, anchor='nw')
+            canvas.configure(yscrollcommand=scrollbar.set)
 
-        canvas.pack(side='top', fill='both', expand=True)
-        scrollbar.pack(side='bottom', fill='x')
+            canvas.pack(side='left', fill='both', expand=True)
+            scrollbar.pack(side='right', fill='y')
+        else:
+            # Per mese: scrollbar orizzontale (molti giorni, pochi indicatori)
+            canvas = tk.Canvas(canvas_frame, height=200)
+            scrollbar = ttk.Scrollbar(canvas_frame, orient='horizontal', command=canvas.xview)
+            self.summary_grid = ttk.Frame(canvas)
+
+            canvas.create_window((0, 0), window=self.summary_grid, anchor='nw')
+            canvas.configure(xscrollcommand=scrollbar.set)
+
+            canvas.pack(side='top', fill='both', expand=True)
+            scrollbar.pack(side='bottom', fill='x')
 
         # Aggiorna canvas quando cambia dimensione
         self.summary_grid.bind('<Configure>', lambda e: canvas.configure(scrollregion=canvas.bbox('all')))
