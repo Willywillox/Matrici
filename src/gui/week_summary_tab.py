@@ -65,13 +65,6 @@ class WeekSummaryTab(ttk.Frame):
         table_frame = ttk.Frame(self)
         table_frame.pack(fill='both', expand=True, padx=10, pady=10)
 
-        # Scrollbar
-        scroll_y = ttk.Scrollbar(table_frame, orient='vertical')
-        scroll_y.pack(side='right', fill='y')
-
-        scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
-        scroll_x.pack(side='bottom', fill='x')
-
         # Definizione colonne
         # Colonne fisse a sinistra + 5 giorni x 4 campi (Turno, Strao, Giust, Pausa)
         base_columns = ['ID_SAP', 'Nome', 'Cognome', 'Skill', 'Microskill']
@@ -88,6 +81,15 @@ class WeekSummaryTab(ttk.Frame):
 
         all_columns = base_columns + day_columns
 
+        # Scrollbar verticale
+        scroll_y = ttk.Scrollbar(table_frame, orient='vertical')
+        scroll_y.pack(side='right', fill='y')
+
+        # Scrollbar orizzontale
+        scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
+        scroll_x.pack(side='bottom', fill='x')
+
+        # Treeview
         self.tree = ttk.Treeview(table_frame, columns=all_columns, show='headings',
                                 yscrollcommand=scroll_y.set,
                                 xscrollcommand=scroll_x.set,
@@ -103,23 +105,23 @@ class WeekSummaryTab(ttk.Frame):
         self.tree.heading('Skill', text='Skill')
         self.tree.heading('Microskill', text='Microskill')
 
-        self.tree.column('ID_SAP', width=70, anchor='center')
-        self.tree.column('Nome', width=100)
-        self.tree.column('Cognome', width=100)
-        self.tree.column('Skill', width=80)
-        self.tree.column('Microskill', width=80)
+        self.tree.column('ID_SAP', width=70, anchor='center', minwidth=70)
+        self.tree.column('Nome', width=100, minwidth=80)
+        self.tree.column('Cognome', width=100, minwidth=80)
+        self.tree.column('Skill', width=80, minwidth=60)
+        self.tree.column('Microskill', width=80, minwidth=60)
 
         # Headers e larghezze colonne giorni
         for giorno in giorni:
-            self.tree.heading(f'{giorno}_Turno', text=f'{giorno}\nTurno')
-            self.tree.heading(f'{giorno}_Strao', text=f'{giorno}\nStrao')
-            self.tree.heading(f'{giorno}_Giust', text=f'{giorno}\nGiust.')
-            self.tree.heading(f'{giorno}_Pausa', text=f'{giorno}\nPausa')
+            self.tree.heading(f'{giorno}_Turno', text=f'{giorno} Turno')
+            self.tree.heading(f'{giorno}_Strao', text=f'{giorno} Strao')
+            self.tree.heading(f'{giorno}_Giust', text=f'{giorno} Giust')
+            self.tree.heading(f'{giorno}_Pausa', text=f'{giorno} Pausa')
 
-            self.tree.column(f'{giorno}_Turno', width=90, anchor='center')
-            self.tree.column(f'{giorno}_Strao', width=50, anchor='center')
-            self.tree.column(f'{giorno}_Giust', width=60, anchor='center')
-            self.tree.column(f'{giorno}_Pausa', width=70, anchor='center')
+            self.tree.column(f'{giorno}_Turno', width=90, anchor='center', minwidth=80)
+            self.tree.column(f'{giorno}_Strao', width=60, anchor='center', minwidth=50)
+            self.tree.column(f'{giorno}_Giust', width=70, anchor='center', minwidth=50)
+            self.tree.column(f'{giorno}_Pausa', width=80, anchor='center', minwidth=60)
 
         self.tree.pack(fill='both', expand=True)
 
@@ -275,10 +277,10 @@ class WeekSummaryTab(ttk.Frame):
                 date_obj = week_start + timedelta(days=i)
                 date_label = date_obj.strftime('%d/%m')
 
-                self.tree.heading(f'{giorno}_Turno', text=f'{giorno} {date_label}\nTurno')
-                self.tree.heading(f'{giorno}_Strao', text=f'{giorno}\nStrao')
-                self.tree.heading(f'{giorno}_Giust', text=f'{giorno}\nGiust.')
-                self.tree.heading(f'{giorno}_Pausa', text=f'{giorno}\nPausa')
+                self.tree.heading(f'{giorno}_Turno', text=f'{giorno} {date_label} Turno')
+                self.tree.heading(f'{giorno}_Strao', text=f'{giorno} {date_label} Strao')
+                self.tree.heading(f'{giorno}_Giust', text=f'{giorno} {date_label} Giust')
+                self.tree.heading(f'{giorno}_Pausa', text=f'{giorno} {date_label} Pausa')
 
             messagebox.showinfo("Aggiornamento", f"Caricati {len(operatori)} operatori")
 
