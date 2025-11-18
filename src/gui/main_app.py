@@ -19,6 +19,7 @@ from gui.capability_dashboard import CapabilityDashboard
 from gui.riepilogo_screen import RiepilogoScreen
 from gui.erlang_config_tab import ErlangConfigTab
 from gui.templates_tab import TemplatesTab
+from gui.week_summary_tab import WeekSummaryTab
 
 
 class MatriciApp:
@@ -174,6 +175,10 @@ class MatriciApp:
         # Tab 6: TEMPLATES
         self.tab_templates = TemplatesTab(self.notebook, self.db_manager)
         self.notebook.add(self.tab_templates, text='📥 Templates')
+
+        # Tab 7: RIEPILOGO SETTIMANALE
+        self.tab_week_summary = WeekSummaryTab(self.notebook, self.db_manager)
+        self.notebook.add(self.tab_week_summary, text='📅 Riepilogo Settimana')
 
     def setup_anagrafica_tab(self):
         """Setup tab anagrafica operatori"""
