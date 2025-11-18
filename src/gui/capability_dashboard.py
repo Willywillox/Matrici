@@ -1271,8 +1271,19 @@ Operatori in Produzione: {in_prod}
                  font=('Arial', 10, 'bold'), foreground='#2196F3').grid(
             row=0, column=len(giorni_settimana)+1, padx=10, pady=5, sticky='ew')
 
-        # Indicatori principali
-        indicators = ['FTE', 'Volumi', 'Gestibile', 'Ore Prod.', 'Copertura %']
+        # Indicatori completi (come nella vista Totale)
+        indicators = [
+            'FTE Richiesti',
+            'FTE Disponibili',
+            'Delta FTE',
+            'Volumi Attesi',
+            'Gestibile',
+            'Delta Forecast',
+            'Ore Richieste',
+            'Ore Produzione',
+            'Delta Ore',
+            'Copertura %'
+        ]
 
         totali = {ind: 0 for ind in indicators}
 
@@ -1296,13 +1307,40 @@ Operatori in Produzione: {in_prod}
                 value = self._calc_indicator_value(df_day, indicator)
                 totali[indicator] += value
 
+                # Formato e colore in base al tipo di indicatore
+                if 'Delta' in indicator:
+                    text = f"{value:+.1f}"
+                    color = '#4CAF50' if value >= 0 else '#F44336'
+                elif indicator == 'Copertura %':
+                    text = f"{value:.1f}%"
+                    color = 'black'
+                else:
+                    text = f"{value:.1f}"
+                    color = 'black'
+
                 # Mostra valore
-                ttk.Label(self.summary_grid, text=f"{value:.1f}").grid(
+                ttk.Label(self.summary_grid, text=text, foreground=color).grid(
                     row=row_idx, column=idx+1, padx=5, pady=2)
 
             # Mostra totale (colonna 6)
-            ttk.Label(self.summary_grid, text=f"{totali[indicator]:.1f}",
-                     font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
+            total_val = totali[indicator]
+            if 'Delta' in indicator:
+                total_text = f"{total_val:+.1f}"
+                total_color = '#4CAF50' if total_val >= 0 else '#F44336'
+            elif indicator == 'Copertura %':
+                # Per copertura, calcola media invece di somma
+                count = sum(1 for idx in range(len(giorni_settimana))
+                           if not self.current_data[pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date ==
+                                                     (week_start + timedelta(days=idx))].empty)
+                avg_val = total_val / count if count > 0 else 100
+                total_text = f"{avg_val:.1f}%"
+                total_color = '#2196F3'
+            else:
+                total_text = f"{total_val:.1f}"
+                total_color = '#2196F3'
+
+            ttk.Label(self.summary_grid, text=total_text,
+                     font=('Arial', 9, 'bold'), foreground=total_color).grid(
                 row=row_idx, column=len(giorni_settimana)+1, padx=10, pady=2)
 
     def _render_month_summary(self, month_key):
@@ -1332,14 +1370,25 @@ Operatori in Produzione: {in_prod}
                  font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
             row=0, column=num_days+1, padx=5, pady=5, sticky='ew')
 
-        # Indicatori
-        indicators = ['FTE', 'Vol.', 'Gest.', 'Ore', 'Cop.%']
+        # Indicatori completi (come nella vista Totale)
+        indicators = [
+            'FTE Richiesti',
+            'FTE Disponibili',
+            'Delta FTE',
+            'Volumi Attesi',
+            'Gestibile',
+            'Delta Forecast',
+            'Ore Richieste',
+            'Ore Produzione',
+            'Delta Ore',
+            'Copertura %'
+        ]
         totali = {ind: 0 for ind in indicators}
 
         for row_idx, indicator in enumerate(indicators, start=1):
             # Label indicatore (colonna 0)
             ttk.Label(self.summary_grid, text=indicator,
-                     font=('Arial', 8, 'bold')).grid(
+                     font=('Arial', 7, 'bold')).grid(
                 row=row_idx, column=0, padx=5, pady=2, sticky='e')
 
             # Valori per ogni giorno (colonne 1 a num_days)
@@ -1354,14 +1403,41 @@ Operatori in Produzione: {in_prod}
                 value = self._calc_indicator_value(df_day, indicator)
                 totali[indicator] += value
 
-                if value > 0:
-                    ttk.Label(self.summary_grid, text=f"{value:.0f}",
-                             font=('Arial', 7)).grid(
+                if value != 0:  # Mostra anche valori negativi
+                    # Formato e colore in base al tipo di indicatore
+                    if 'Delta' in indicator:
+                        text = f"{value:+.0f}"
+                        color = '#4CAF50' if value >= 0 else '#F44336'
+                    elif indicator == 'Copertura %':
+                        text = f"{value:.0f}%"
+                        color = 'black'
+                    else:
+                        text = f"{value:.0f}"
+                        color = 'black'
+
+                    ttk.Label(self.summary_grid, text=text,
+                             font=('Arial', 7), foreground=color).grid(
                         row=row_idx, column=day, padx=2, pady=1)
 
             # Totale (colonna num_days + 1)
-            ttk.Label(self.summary_grid, text=f"{totali[indicator]:.0f}",
-                     font=('Arial', 8, 'bold'), foreground='#2196F3').grid(
+            total_val = totali[indicator]
+            if 'Delta' in indicator:
+                total_text = f"{total_val:+.0f}"
+                total_color = '#4CAF50' if total_val >= 0 else '#F44336'
+            elif indicator == 'Copertura %':
+                # Per copertura, calcola media invece di somma
+                count = sum(1 for day in range(1, num_days + 1)
+                           if not self.current_data[pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date ==
+                                                     datetime(year, month, day).date()].empty)
+                avg_val = total_val / count if count > 0 else 100
+                total_text = f"{avg_val:.0f}%"
+                total_color = '#2196F3'
+            else:
+                total_text = f"{total_val:.0f}"
+                total_color = '#2196F3'
+
+            ttk.Label(self.summary_grid, text=total_text,
+                     font=('Arial', 8, 'bold'), foreground=total_color).grid(
                 row=row_idx, column=num_days+1, padx=5, pady=2)
 
     def _calc_indicator_value(self, df, indicator):
@@ -1369,21 +1445,43 @@ Operatori in Produzione: {in_prod}
         if df.empty:
             return 0
 
-        if indicator in ['FTE']:
-            return df['FTE_Effettivi'].sum() if 'FTE_Effettivi' in df.columns else 0
-        elif indicator in ['Volumi', 'Vol.']:
-            return df['Volumi_Attesi'].sum() if 'Volumi_Attesi' in df.columns else 0
-        elif indicator in ['Gestibile', 'Gest.']:
-            return df['Gestibile_Chiamate'].sum() if 'Gestibile_Chiamate' in df.columns else 0
-        elif indicator in ['Ore Prod.', 'Ore']:
-            ore_per_fascia = 0.25  # Default
-            return df['In_Produzione'].sum() * ore_per_fascia if 'In_Produzione' in df.columns else 0
-        elif indicator in ['Copertura %', 'Cop.%']:
+        # Determina ore per fascia (assumiamo 15 minuti di default)
+        ore_per_fascia = 0.25
+
+        # Calcola valori base
+        fte_disponibili = df['FTE_Effettivi'].sum() if 'FTE_Effettivi' in df.columns else 0
+        fte_richiesti = df['FTE_Richiesti'].sum() if 'FTE_Richiesti' in df.columns else 0
+        volumi_attesi = df['Volumi_Attesi'].sum() if 'Volumi_Attesi' in df.columns else 0
+        gestibile = df['Gestibile_Chiamate'].sum() if 'Gestibile_Chiamate' in df.columns else 0
+
+        ore_produzione = (df['In_Produzione'].sum() * ore_per_fascia) if 'In_Produzione' in df.columns else 0
+        ore_richieste = (df['Agenti_Richiesti'].sum() * ore_per_fascia) if 'Agenti_Richiesti' in df.columns else 0
+
+        # Gestisci indicatori
+        if indicator == 'FTE Richiesti':
+            return fte_richiesti
+        elif indicator == 'FTE Disponibili':
+            return fte_disponibili
+        elif indicator == 'Delta FTE':
+            return fte_disponibili - fte_richiesti
+        elif indicator == 'Volumi Attesi':
+            return volumi_attesi
+        elif indicator == 'Gestibile':
+            return gestibile
+        elif indicator == 'Delta Forecast':
+            return gestibile - volumi_attesi
+        elif indicator == 'Ore Richieste':
+            return ore_richieste
+        elif indicator == 'Ore Produzione':
+            return ore_produzione
+        elif indicator == 'Delta Ore':
+            return ore_produzione - ore_richieste
+        elif indicator == 'Copertura %':
             if 'In_Produzione' in df.columns and 'Agenti_Richiesti' in df.columns:
                 prod = df['In_Produzione'].sum()
                 rich = df['Agenti_Richiesti'].sum()
                 return (prod / rich * 100) if rich > 0 else 100
-            return 0
+            return 100
 
         return 0
 
