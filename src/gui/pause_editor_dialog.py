@@ -371,7 +371,6 @@ class PauseEditorDialog(tk.Toplevel):
                 """, (pausa_inizio, pausa_fine, op['id_sap'], op['data']))
                 count += 1
 
-            self.db_manager.commit()
             self.modified = True
 
             messagebox.showinfo("Successo", f"Aggiornate {count} pause con successo")
