@@ -1255,22 +1255,6 @@ Operatori in Produzione: {in_prod}
         """Renderizza riepilogo settimana con dettaglio per giorno"""
         giorni_settimana = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven']
 
-        # Colonna 0 vuota (per le label indicatori)
-        ttk.Label(self.summary_grid, text="").grid(row=0, column=0, padx=5, pady=5)
-
-        # Header con giorni (colonne 1-5)
-        for idx, giorno in enumerate(giorni_settimana):
-            date = week_start + timedelta(days=idx)
-            header = ttk.Label(self.summary_grid,
-                             text=f"{giorno}\n{date.strftime('%d/%m')}",
-                             font=('Arial', 9, 'bold'))
-            header.grid(row=0, column=idx+1, padx=5, pady=5, sticky='ew')
-
-        # Colonna TOTALE (colonna 6)
-        ttk.Label(self.summary_grid, text="TOTALE\nSettimana",
-                 font=('Arial', 10, 'bold'), foreground='#2196F3').grid(
-            row=0, column=len(giorni_settimana)+1, padx=10, pady=5, sticky='ew')
-
         # Indicatori completi (come nella vista Totale)
         indicators = [
             'FTE Richiesti',
@@ -1285,27 +1269,39 @@ Operatori in Produzione: {in_prod}
             'Copertura %'
         ]
 
-        totali = {ind: 0 for ind in indicators}
+        # Header: Colonna 0 vuota, Colonne 1-10 indicatori, Colonna 11 TOTALE
+        ttk.Label(self.summary_grid, text="").grid(row=0, column=0, padx=5, pady=5)
 
-        for row_idx, indicator in enumerate(indicators, start=1):
-            # Label indicatore (colonna 0)
-            ttk.Label(self.summary_grid, text=indicator,
+        # Header con indicatori (colonne 1-10)
+        for col_idx, indicator in enumerate(indicators, start=1):
+            # Usa abbreviazioni per risparmiare spazio
+            abbrev = indicator.replace('Richiesti', 'Rich.').replace('Disponibili', 'Disp.').replace('Attesi', 'Att.')
+            header = ttk.Label(self.summary_grid,
+                             text=abbrev,
+                             font=('Arial', 8, 'bold'))
+            header.grid(row=0, column=col_idx, padx=3, pady=5, sticky='ew')
+
+        # Calcola valori per ogni giorno (righe 1-5)
+        totali_indicatori = {ind: 0 for ind in indicators}
+
+        for row_idx, giorno in enumerate(giorni_settimana, start=1):
+            date = week_start + timedelta(days=row_idx-1)
+
+            # Label giorno (colonna 0)
+            ttk.Label(self.summary_grid,
+                     text=f"{giorno}\n{date.strftime('%d/%m')}",
                      font=('Arial', 8, 'bold')).grid(
                 row=row_idx, column=0, padx=5, pady=2, sticky='e')
 
-            # Valori per ogni giorno (colonne 1-5)
-            for idx, giorno in enumerate(giorni_settimana):
-                date = week_start + timedelta(days=idx)
-                date_str = date.strftime('%Y-%m-%d')
+            # Filtra dati per questo giorno
+            df_day = self.current_data[
+                pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date == date
+            ]
 
-                # Filtra dati per questo giorno
-                df_day = self.current_data[
-                    pd.to_datetime(self.current_data['Fascia_Oraria']).dt.date == date
-                ]
-
-                # Calcola valore indicatore
+            # Valori indicatori per questo giorno (colonne 1-10)
+            for col_idx, indicator in enumerate(indicators, start=1):
                 value = self._calc_indicator_value(df_day, indicator)
-                totali[indicator] += value
+                totali_indicatori[indicator] += value
 
                 # Formato e colore in base al tipo di indicatore
                 if 'Delta' in indicator:
@@ -1319,11 +1315,19 @@ Operatori in Produzione: {in_prod}
                     color = 'black'
 
                 # Mostra valore
-                ttk.Label(self.summary_grid, text=text, foreground=color).grid(
-                    row=row_idx, column=idx+1, padx=5, pady=2)
+                ttk.Label(self.summary_grid, text=text, foreground=color,
+                         font=('Arial', 8)).grid(
+                    row=row_idx, column=col_idx, padx=3, pady=2)
 
-            # Mostra totale (colonna 6)
-            total_val = totali[indicator]
+        # Riga TOTALE Settimana (riga 6)
+        ttk.Label(self.summary_grid, text="TOTALE\nSettimana",
+                 font=('Arial', 9, 'bold'), foreground='#2196F3').grid(
+            row=len(giorni_settimana)+1, column=0, padx=5, pady=5, sticky='e')
+
+        # Totali per ogni indicatore (colonne 1-10)
+        for col_idx, indicator in enumerate(indicators, start=1):
+            total_val = totali_indicatori[indicator]
+
             if 'Delta' in indicator:
                 total_text = f"{total_val:+.1f}"
                 total_color = '#4CAF50' if total_val >= 0 else '#F44336'
@@ -1341,7 +1345,7 @@ Operatori in Produzione: {in_prod}
 
             ttk.Label(self.summary_grid, text=total_text,
                      font=('Arial', 9, 'bold'), foreground=total_color).grid(
-                row=row_idx, column=len(giorni_settimana)+1, padx=10, pady=2)
+                row=len(giorni_settimana)+1, column=col_idx, padx=3, pady=5)
 
     def _render_month_summary(self, month_key):
         """Renderizza riepilogo mese con dettaglio per giorno"""
