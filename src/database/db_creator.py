@@ -39,6 +39,7 @@ class DatabaseCreator:
             cursor = conn.cursor()
 
             # Tabella Anagrafica Operatori
+            print("Creazione tabella: Anagrafica_Operatori")
             cursor.execute("""
                 CREATE TABLE Anagrafica_Operatori (
                     ID COUNTER PRIMARY KEY,
@@ -92,10 +93,11 @@ class DatabaseCreator:
             """)
 
             # Tabella Cambio Skill Intraday
+            print("Creazione tabella: Cambio_Skill")
             cursor.execute("""
                 CREATE TABLE Cambio_Skill (
                     ID COUNTER PRIMARY KEY,
-                    ID_SAP TEXT(20) NOT NULL,
+                    ID_SAP TEXT(20),
                     Data_Riferimento DATETIME,
                     Ora_Inizio DATETIME,
                     Ora_Fine DATETIME,
@@ -105,6 +107,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Forecast
+            print("Creazione tabella: Forecast")
             cursor.execute("""
                 CREATE TABLE Forecast (
                     ID COUNTER PRIMARY KEY,
@@ -118,6 +121,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Skills (anagrafica skills)
+            print("Creazione tabella: Skills")
             cursor.execute("""
                 CREATE TABLE Skills (
                     ID COUNTER PRIMARY KEY,
@@ -128,6 +132,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Turni (anagrafica turni standard)
+            print("Creazione tabella: Turni")
             cursor.execute("""
                 CREATE TABLE Turni (
                     ID COUNTER PRIMARY KEY,
@@ -143,6 +148,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Giustificativi (anagrafica giustificativi)
+            print("Creazione tabella: Giustificativi")
             cursor.execute("""
                 CREATE TABLE Giustificativi (
                     ID COUNTER PRIMARY KEY,
@@ -154,6 +160,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Erlang_Config (configurazione parametri Erlang C per skill)
+            print("Creazione tabella: Erlang_Config")
             cursor.execute("""
                 CREATE TABLE Erlang_Config (
                     ID COUNTER PRIMARY KEY,
@@ -175,6 +182,7 @@ class DatabaseCreator:
             """)
 
             # Tabella Storico Turni (per mantenere storico)
+            print("Creazione tabella: Storico_Turni")
             cursor.execute("""
                 CREATE TABLE Storico_Turni (
                     ID COUNTER PRIMARY KEY,
