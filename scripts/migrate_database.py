@@ -285,19 +285,28 @@ class DatabaseMigrator:
             # Inserisci dati in Access
             tgt_cursor = self.target_conn.cursor()
 
+            # Ottieni colonne della tabella Access di destinazione
+            try:
+                tgt_cursor.execute(f"SELECT * FROM [{table_name}] WHERE 1=0")
+                access_columns = [description[0] for description in tgt_cursor.description]
+            except:
+                access_columns = columns  # Fallback se la query fallisce
+
             # Svuota tabella esistente
             try:
-                tgt_cursor.execute(f"DELETE FROM {table_name}")
+                tgt_cursor.execute(f"DELETE FROM [{table_name}]")
             except:
                 pass
 
-            # Prepara INSERT
-            placeholders = ', '.join(['?' for _ in columns])
+            # Prepara INSERT - usa solo colonne che esistono in entrambi i database
             # Escludi colonna ID (autoincrement)
-            insert_columns = [c for c in columns if c.upper() != 'ID']
+            insert_columns = [c for c in columns if c.upper() != 'ID' and c in access_columns]
             insert_placeholders = ', '.join(['?' for _ in insert_columns])
 
-            insert_sql = f"INSERT INTO {table_name} ({', '.join(insert_columns)}) VALUES ({insert_placeholders})"
+            # Usa parentesi quadre per evitare conflitti con parole riservate
+            column_names = ', '.join([f'[{c}]' for c in insert_columns])
+
+            insert_sql = f"INSERT INTO [{table_name}] ({column_names}) VALUES ({insert_placeholders})"
 
             # Inserisci righe
             for row in rows:
