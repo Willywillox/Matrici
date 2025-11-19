@@ -218,7 +218,10 @@ class DatabaseMigrator:
 
         if 'Anagrafica_Operatori' not in existing_tables:
             print("Tabelle non trovate nel database Access. Creazione tabelle...")
-            from src.database.db_creator import DatabaseCreator
+            try:
+                from database.db_creator import DatabaseCreator
+            except ImportError:
+                from src.database.db_creator import DatabaseCreator
             # Chiudi connessione temporaneamente
             self.target_conn.close()
             # Crea tabelle
