@@ -193,10 +193,11 @@ class DatabaseCreator:
             print(f"Database creato con successo: {self.db_path}")
 
         except pyodbc.Error as e:
-            print(f"Errore nella creazione del database: {e}")
-            print("\nNOTA: Su Linux/Mac, Access non è supportato.")
-            print("Verrà creato un database SQLite alternativo...")
-            self._create_sqlite_alternative()
+            print(f"Errore nella creazione del database Access: {e}")
+            import traceback
+            traceback.print_exc()
+            # Rilancia l'errore invece di creare silenziosamente SQLite
+            raise
 
         finally:
             if 'conn' in locals():
