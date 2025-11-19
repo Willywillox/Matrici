@@ -202,11 +202,29 @@ class DatabaseMigrator:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir)
 
-        # Se il file non esiste, deve essere creato manualmente o con un template
+        # Se il file non esiste, crealo
         if not os.path.exists(access_path):
-            print("NOTA: Il file Access deve essere creato manualmente prima della migrazione.")
-            print("      Puoi copiare un file .accdb vuoto come template.")
-            raise FileNotFoundError(f"File Access non trovato: {access_path}")
+            print(f"Creazione nuovo database Access: {access_path}")
+            try:
+                # Usa win32com per creare il database Access
+                import win32com.client
+                access_app = win32com.client.Dispatch("Access.Application")
+                access_app.NewCurrentDatabase(os.path.abspath(access_path))
+                access_app.CloseCurrentDatabase()
+                access_app.Quit()
+                print("Database Access creato con successo!")
+            except Exception as e:
+                print(f"Impossibile creare database Access con win32com: {e}")
+                print("Tentativo con metodo alternativo...")
+                # Metodo alternativo: crea file vuoto e connettiti
+                # Questo potrebbe non funzionare su tutti i sistemi
+                raise FileNotFoundError(
+                    f"Impossibile creare il file Access automaticamente.\n"
+                    f"Per favore crea un database Access vuoto manualmente:\n"
+                    f"1. Apri Microsoft Access\n"
+                    f"2. Crea un nuovo database vuoto\n"
+                    f"3. Salvalo come: {access_path}"
+                )
 
         conn_str = f"DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={os.path.abspath(access_path)};"
         self.target_conn = pyodbc.connect(conn_str)
