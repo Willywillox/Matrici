@@ -102,7 +102,7 @@ class DatabaseCreator:
                     Ora_Inizio DATETIME,
                     Ora_Fine DATETIME,
                     Skill_Temporaneo TEXT(100),
-                    Note TEXT(255)
+                    Nota TEXT(255)
                 )
             """)
 
@@ -143,7 +143,7 @@ class DatabaseCreator:
                     Ore_Turno DOUBLE,
                     Ora_Inizio_Spezzato DATETIME,
                     Ora_Fine_Spezzato DATETIME,
-                    Note TEXT(255)
+                    Nota TEXT(255)
                 )
             """)
 
@@ -155,7 +155,7 @@ class DatabaseCreator:
                     Codice_Giustificativo TEXT(50),
                     Descrizione TEXT(255),
                     Tipologia TEXT(100),
-                    Note TEXT(255)
+                    Nota TEXT(255)
                 )
             """)
 
@@ -176,7 +176,7 @@ class DatabaseCreator:
                     ASA_Target_Seconds INTEGER,
                     Occupancy_Target DOUBLE,
                     Interval_Minutes INTEGER,
-                    Note TEXT(255),
+                    Nota TEXT(255),
                     Data_Aggiornamento DATETIME
                 )
             """)
@@ -192,7 +192,7 @@ class DatabaseCreator:
                     Ora_Inizio DATETIME,
                     Ora_Fine DATETIME,
                     Skill TEXT(100),
-                    Note TEXT(255),
+                    Nota TEXT(255),
                     Data_Inserimento DATETIME
                 )
             """)
@@ -280,7 +280,7 @@ class DatabaseCreator:
                 Ora_Inizio TEXT NOT NULL,
                 Ora_Fine TEXT NOT NULL,
                 Skill_Temporaneo TEXT NOT NULL,
-                Note TEXT
+                Nota TEXT
             )
         """)
 
@@ -315,7 +315,7 @@ class DatabaseCreator:
                 Ore_Turno REAL,
                 Ora_Inizio_Spezzato TEXT,
                 Ora_Fine_Spezzato TEXT,
-                Note TEXT
+                Nota TEXT
             )
         """)
 
@@ -325,7 +325,7 @@ class DatabaseCreator:
                 Codice_Giustificativo TEXT UNIQUE NOT NULL,
                 Descrizione TEXT,
                 Tipologia TEXT,
-                Note TEXT
+                Nota TEXT
             )
         """)
 
@@ -344,7 +344,7 @@ class DatabaseCreator:
                 ASA_Target_Seconds INTEGER DEFAULT 60,
                 Occupancy_Target REAL DEFAULT 0.85,
                 Interval_Minutes INTEGER DEFAULT 30,
-                Note TEXT,
+                Nota TEXT,
                 Data_Aggiornamento TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -358,7 +358,7 @@ class DatabaseCreator:
                 Ora_Inizio TEXT,
                 Ora_Fine TEXT,
                 Skill TEXT,
-                Note TEXT,
+                Nota TEXT,
                 Data_Inserimento TEXT DEFAULT CURRENT_TIMESTAMP
             )
         """)
