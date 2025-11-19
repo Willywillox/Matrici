@@ -121,7 +121,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Skills (
                     ID AUTOINCREMENT PRIMARY KEY,
-                    Codice_Skill TEXT(50) UNIQUE NOT NULL,
+                    Codice_Skill TEXT(50) NOT NULL,
                     Descrizione TEXT(255),
                     Produttivita_Default DOUBLE
                 )
@@ -131,7 +131,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Turni (
                     ID AUTOINCREMENT PRIMARY KEY,
-                    ID_Turno TEXT(20) UNIQUE NOT NULL,
+                    ID_Turno TEXT(20) NOT NULL,
                     Descrizione TEXT(255),
                     Ora_Inizio DATETIME NOT NULL,
                     Ora_Fine DATETIME NOT NULL,
@@ -146,7 +146,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Giustificativi (
                     ID AUTOINCREMENT PRIMARY KEY,
-                    Codice_Giustificativo TEXT(50) UNIQUE NOT NULL,
+                    Codice_Giustificativo TEXT(50) NOT NULL,
                     Descrizione TEXT(255),
                     Tipologia TEXT(100),
                     Note TEXT(255)
@@ -157,20 +157,20 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Erlang_Config (
                     ID AUTOINCREMENT PRIMARY KEY,
-                    Skill TEXT(100) UNIQUE NOT NULL,
-                    Tipo_Canale TEXT(20) DEFAULT 'Voice',
-                    AHT_Seconds INTEGER DEFAULT 180,
-                    Concurrency INTEGER DEFAULT 1,
-                    Tempo_Pausa_Minuti INTEGER DEFAULT 0,
-                    Shrinkage DOUBLE DEFAULT 0.30,
-                    Produttivita DOUBLE DEFAULT 1.0,
-                    Service_Level_Target DOUBLE DEFAULT 0.80,
-                    Service_Level_Seconds INTEGER DEFAULT 20,
-                    ASA_Target_Seconds INTEGER DEFAULT 60,
-                    Occupancy_Target DOUBLE DEFAULT 0.85,
-                    Interval_Minutes INTEGER DEFAULT 30,
+                    Skill TEXT(100) NOT NULL,
+                    Tipo_Canale TEXT(20),
+                    AHT_Seconds INTEGER,
+                    Concurrency INTEGER,
+                    Tempo_Pausa_Minuti INTEGER,
+                    Shrinkage DOUBLE,
+                    Produttivita DOUBLE,
+                    Service_Level_Target DOUBLE,
+                    Service_Level_Seconds INTEGER,
+                    ASA_Target_Seconds INTEGER,
+                    Occupancy_Target DOUBLE,
+                    Interval_Minutes INTEGER,
                     Note TEXT(255),
-                    Data_Aggiornamento DATETIME DEFAULT Now()
+                    Data_Aggiornamento DATETIME
                 )
             """)
 
@@ -185,7 +185,7 @@ class DatabaseCreator:
                     Ora_Fine DATETIME,
                     Skill TEXT(100),
                     Note TEXT(255),
-                    Data_Inserimento DATETIME DEFAULT Now()
+                    Data_Inserimento DATETIME
                 )
             """)
 
