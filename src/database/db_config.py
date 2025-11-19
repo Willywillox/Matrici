@@ -98,19 +98,36 @@ class DatabaseConfig:
 
     def set_sqlite(self, path):
         """Configura per usare SQLite"""
+        # Assicura che la sezione esista
+        if not self.config.has_section('database'):
+            self.config.add_section('database')
+
         self.config.set('database', 'type', 'sqlite')
         self.config.set('database', 'path', path)
         self._save_config()
 
     def set_access(self, path):
         """Configura per usare Access"""
+        # Assicura che le sezioni esistano
+        if not self.config.has_section('database'):
+            self.config.add_section('database')
+        if not self.config.has_section('access'):
+            self.config.add_section('access')
+
         self.config.set('database', 'type', 'access')
         self.config.set('database', 'path', path)
         self.config.set('access', 'path', path)
+        self.config.set('access', 'driver', 'Microsoft Access Driver (*.mdb, *.accdb)')
         self._save_config()
 
     def set_sqlserver(self, server, database, trusted=True):
         """Configura per usare SQL Server"""
+        # Assicura che le sezioni esistano
+        if not self.config.has_section('database'):
+            self.config.add_section('database')
+        if not self.config.has_section('sqlserver'):
+            self.config.add_section('sqlserver')
+
         self.config.set('database', 'type', 'sqlserver')
         self.config.set('sqlserver', 'server', server)
         self.config.set('sqlserver', 'database', database)
