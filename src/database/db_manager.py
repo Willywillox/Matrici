@@ -198,7 +198,7 @@ class DatabaseManager:
             # Se entrambi sono presenti, verifica che non confliggano con un altro operatore
             if id_sap and data_rif:
                 existing = self.execute_query(
-                    "SELECT ID FROM Anagrafica_Operatori WHERE ID_SAP = ? AND Data_Riferimento = ? AND ID != ?",
+                    "SELECT ID FROM Anagrafica_Operatori WHERE ID_SAP = ? AND Data_Riferimento = ? AND ID <> ?",
                     (id_sap, data_rif, id_operatore)
                 )
 
