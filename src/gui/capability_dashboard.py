@@ -289,7 +289,7 @@ class CapabilityDashboard(ttk.Frame):
                     SELECT DISTINCT Etichetta_Skill
                     FROM Anagrafica_Operatori
                     WHERE Etichetta_Skill IS NOT NULL
-                    AND TRIM(Etichetta_Skill) != ''
+                    AND Etichetta_Skill <> ''
                     ORDER BY Etichetta_Skill
                 """)
 
@@ -316,14 +316,14 @@ class CapabilityDashboard(ttk.Frame):
             # Carica microskill unici dalla tabella Skills
             microskills_skills = self.db_manager.execute_query("""
                 SELECT DISTINCT Microskill FROM Skills
-                WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                WHERE Microskill IS NOT NULL AND Microskill <> ''
                 ORDER BY Microskill
             """)
 
             # Carica microskill unici dalla tabella Anagrafica_Operatori
             microskills_ops = self.db_manager.execute_query("""
                 SELECT DISTINCT Microskill FROM Anagrafica_Operatori
-                WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                WHERE Microskill IS NOT NULL AND Microskill <> ''
                 ORDER BY Microskill
             """)
 

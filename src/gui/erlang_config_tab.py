@@ -1184,7 +1184,7 @@ class ErlangConfigDialog(tk.Toplevel):
                 result = self.db_manager.execute_query("""
                     SELECT DISTINCT Skill
                     FROM Forecast
-                    WHERE Skill IS NOT NULL AND Skill != ''
+                    WHERE Skill IS NOT NULL AND Skill <> ''
                     ORDER BY Skill
                 """)
 

@@ -150,7 +150,7 @@ class PauseEditorDialog(tk.Toplevel):
             microskills_result = self.db_manager.execute_query("""
                 SELECT DISTINCT Microskill
                 FROM Skills
-                WHERE Microskill IS NOT NULL AND Microskill != ''
+                WHERE Microskill IS NOT NULL AND Microskill <> ''
                 ORDER BY Microskill
             """)
             microskills = ['Tutti'] + [row[0] for row in microskills_result] if microskills_result else ['Tutti']
@@ -171,7 +171,7 @@ class PauseEditorDialog(tk.Toplevel):
                 microskills_result = self.db_manager.execute_query("""
                     SELECT DISTINCT Microskill
                     FROM Skills
-                    WHERE Microskill IS NOT NULL AND Microskill != ''
+                    WHERE Microskill IS NOT NULL AND Microskill <> ''
                     ORDER BY Microskill
                 """)
             else:
@@ -181,7 +181,7 @@ class PauseEditorDialog(tk.Toplevel):
                     FROM Skills
                     WHERE Codice_Skill = ?
                       AND Microskill IS NOT NULL
-                      AND Microskill != ''
+                      AND Microskill <> ''
                     ORDER BY Microskill
                 """, (selected_skill,))
 

@@ -331,7 +331,7 @@ class MatriciApp:
                     SELECT DISTINCT Etichetta_Skill
                     FROM Anagrafica_Operatori
                     WHERE Etichetta_Skill IS NOT NULL
-                    AND TRIM(Etichetta_Skill) != ''
+                    AND Etichetta_Skill <> ''
                     ORDER BY Etichetta_Skill
                 """)
 

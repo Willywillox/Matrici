@@ -147,7 +147,7 @@ class WeekSummaryTab(ttk.Frame):
             microskills_result = self.db_manager.execute_query("""
                 SELECT DISTINCT Microskill
                 FROM Anagrafica_Operatori
-                WHERE Microskill IS NOT NULL AND Microskill != ''
+                WHERE Microskill IS NOT NULL AND Microskill <> ''
                 ORDER BY Microskill
             """)
             microskills = ['Tutti'] + [row[0] for row in microskills_result] if microskills_result else ['Tutti']
