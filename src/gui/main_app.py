@@ -12,6 +12,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from database.db_manager import DatabaseManager
 from database.db_creator import DatabaseCreator
+from database.db_config import DatabaseConfig
 from gui.operatore_form import OperatoreForm
 from gui.quick_edit_dialog import QuickEditDialog
 from gui.cambio_turno_dialog import CambioTurnoDialog
@@ -31,13 +32,13 @@ class MatriciApp:
         self.root.title("Matrici - Gestione Turni e Capability Operatori")
         self.root.geometry("1400x850")
 
-        # Database Access
-        self.db_path = 'data/operator_overtime.accdb'
-        # Fallback a SQLite se Access non disponibile
-        if not os.path.exists(self.db_path):
-            self.db_path = 'data/operator_overtime.db'
+        # Carica configurazione database
+        self.db_config = DatabaseConfig()
+        self.db_path = self.db_config.db_path
+        self.db_type = self.db_config.db_type
 
-        self.db_manager = DatabaseManager(self.db_path)
+        # Usa il database manager con la configurazione (non passare path per usare config)
+        self.db_manager = DatabaseManager()
 
         # Verifica database
         self.check_database()
