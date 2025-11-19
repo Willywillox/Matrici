@@ -87,7 +87,7 @@ class DatabaseCreator:
                     Etichetta_Skill TEXT(100),
                     Data_Riferimento DATETIME NOT NULL,
                     Postazione TEXT(20),
-                    CONSTRAINT UC_Operatore_Data UNIQUE (ID_SAP, Data_Riferimento)
+                    Microskill TEXT(100)
                 )
             """)
 
