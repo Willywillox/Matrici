@@ -41,7 +41,7 @@ class DatabaseCreator:
             # Tabella Anagrafica Operatori
             cursor.execute("""
                 CREATE TABLE Anagrafica_Operatori (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     Nome TEXT(50) NOT NULL,
                     Cognome TEXT(50) NOT NULL,
                     ID_SAP TEXT(20) NOT NULL,
@@ -94,7 +94,7 @@ class DatabaseCreator:
             # Tabella Cambio Skill Intraday
             cursor.execute("""
                 CREATE TABLE Cambio_Skill (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     ID_SAP TEXT(20) NOT NULL,
                     Data_Riferimento DATETIME NOT NULL,
                     Ora_Inizio DATETIME NOT NULL,
@@ -107,7 +107,7 @@ class DatabaseCreator:
             # Tabella Forecast
             cursor.execute("""
                 CREATE TABLE Forecast (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     Data_Riferimento DATETIME NOT NULL,
                     Fascia_Oraria DATETIME NOT NULL,
                     Skill TEXT(100) NOT NULL,
@@ -120,7 +120,7 @@ class DatabaseCreator:
             # Tabella Skills (anagrafica skills)
             cursor.execute("""
                 CREATE TABLE Skills (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     Codice_Skill TEXT(50) NOT NULL,
                     Descrizione TEXT(255),
                     Produttivita_Default DOUBLE
@@ -130,7 +130,7 @@ class DatabaseCreator:
             # Tabella Turni (anagrafica turni standard)
             cursor.execute("""
                 CREATE TABLE Turni (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     ID_Turno TEXT(20) NOT NULL,
                     Descrizione TEXT(255),
                     Ora_Inizio DATETIME NOT NULL,
@@ -145,7 +145,7 @@ class DatabaseCreator:
             # Tabella Giustificativi (anagrafica giustificativi)
             cursor.execute("""
                 CREATE TABLE Giustificativi (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     Codice_Giustificativo TEXT(50) NOT NULL,
                     Descrizione TEXT(255),
                     Tipologia TEXT(100),
@@ -156,7 +156,7 @@ class DatabaseCreator:
             # Tabella Erlang_Config (configurazione parametri Erlang C per skill)
             cursor.execute("""
                 CREATE TABLE Erlang_Config (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     Skill TEXT(100) NOT NULL,
                     Tipo_Canale TEXT(20),
                     AHT_Seconds INTEGER,
@@ -177,7 +177,7 @@ class DatabaseCreator:
             # Tabella Storico Turni (per mantenere storico)
             cursor.execute("""
                 CREATE TABLE Storico_Turni (
-                    ID AUTOINCREMENT PRIMARY KEY,
+                    ID COUNTER PRIMARY KEY,
                     ID_SAP TEXT(20) NOT NULL,
                     Data_Riferimento DATETIME NOT NULL,
                     Tipo_Turno TEXT(20),
