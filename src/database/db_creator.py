@@ -42,9 +42,9 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Anagrafica_Operatori (
                     ID COUNTER PRIMARY KEY,
-                    Nome TEXT(50) NOT NULL,
-                    Cognome TEXT(50) NOT NULL,
-                    ID_SAP TEXT(20) NOT NULL,
+                    Nome TEXT(50),
+                    Cognome TEXT(50),
+                    ID_SAP TEXT(20),
                     Tipo_Contratto TEXT(50),
                     FTE DOUBLE,
                     Ore_Settimana DOUBLE,
@@ -85,7 +85,7 @@ class DatabaseCreator:
                     Inizio_Giust_5 DATETIME,
                     Fine_Giust_5 DATETIME,
                     Etichetta_Skill TEXT(100),
-                    Data_Riferimento DATETIME NOT NULL,
+                    Data_Riferimento DATETIME,
                     Postazione TEXT(20),
                     Microskill TEXT(100)
                 )
@@ -96,10 +96,10 @@ class DatabaseCreator:
                 CREATE TABLE Cambio_Skill (
                     ID COUNTER PRIMARY KEY,
                     ID_SAP TEXT(20) NOT NULL,
-                    Data_Riferimento DATETIME NOT NULL,
-                    Ora_Inizio DATETIME NOT NULL,
-                    Ora_Fine DATETIME NOT NULL,
-                    Skill_Temporaneo TEXT(100) NOT NULL,
+                    Data_Riferimento DATETIME,
+                    Ora_Inizio DATETIME,
+                    Ora_Fine DATETIME,
+                    Skill_Temporaneo TEXT(100),
                     Note TEXT(255)
                 )
             """)
@@ -108,9 +108,9 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Forecast (
                     ID COUNTER PRIMARY KEY,
-                    Data_Riferimento DATETIME NOT NULL,
-                    Fascia_Oraria DATETIME NOT NULL,
-                    Skill TEXT(100) NOT NULL,
+                    Data_Riferimento DATETIME,
+                    Fascia_Oraria DATETIME,
+                    Skill TEXT(100),
                     Volumi_Attesi INTEGER,
                     Produttivita_Target DOUBLE,
                     FTE_Richiesti DOUBLE
@@ -121,7 +121,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Skills (
                     ID COUNTER PRIMARY KEY,
-                    Codice_Skill TEXT(50) NOT NULL,
+                    Codice_Skill TEXT(50),
                     Descrizione TEXT(255),
                     Produttivita_Default DOUBLE
                 )
@@ -131,10 +131,10 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Turni (
                     ID COUNTER PRIMARY KEY,
-                    ID_Turno TEXT(20) NOT NULL,
+                    ID_Turno TEXT(20),
                     Descrizione TEXT(255),
-                    Ora_Inizio DATETIME NOT NULL,
-                    Ora_Fine DATETIME NOT NULL,
+                    Ora_Inizio DATETIME,
+                    Ora_Fine DATETIME,
                     Ore_Turno DOUBLE,
                     Ora_Inizio_Spezzato DATETIME,
                     Ora_Fine_Spezzato DATETIME,
@@ -146,7 +146,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Giustificativi (
                     ID COUNTER PRIMARY KEY,
-                    Codice_Giustificativo TEXT(50) NOT NULL,
+                    Codice_Giustificativo TEXT(50),
                     Descrizione TEXT(255),
                     Tipologia TEXT(100),
                     Note TEXT(255)
@@ -157,7 +157,7 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Erlang_Config (
                     ID COUNTER PRIMARY KEY,
-                    Skill TEXT(100) NOT NULL,
+                    Skill TEXT(100),
                     Tipo_Canale TEXT(20),
                     AHT_Seconds INTEGER,
                     Concurrency INTEGER,
@@ -178,8 +178,8 @@ class DatabaseCreator:
             cursor.execute("""
                 CREATE TABLE Storico_Turni (
                     ID COUNTER PRIMARY KEY,
-                    ID_SAP TEXT(20) NOT NULL,
-                    Data_Riferimento DATETIME NOT NULL,
+                    ID_SAP TEXT(20),
+                    Data_Riferimento DATETIME,
                     Tipo_Turno TEXT(20),
                     Ora_Inizio DATETIME,
                     Ora_Fine DATETIME,
