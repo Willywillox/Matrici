@@ -127,7 +127,8 @@ class DatabaseCreator:
                     ID COUNTER PRIMARY KEY,
                     Codice_Skill TEXT(50),
                     Descrizione TEXT(255),
-                    Produttivita_Default DOUBLE
+                    Produttivita_Default DOUBLE,
+                    Microskill TEXT(100)
                 )
             """)
 
@@ -301,7 +302,8 @@ class DatabaseCreator:
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 Codice_Skill TEXT UNIQUE NOT NULL,
                 Descrizione TEXT,
-                Produttivita_Default REAL
+                Produttivita_Default REAL,
+                Microskill TEXT
             )
         """)
 
