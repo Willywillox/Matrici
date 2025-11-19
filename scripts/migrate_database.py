@@ -202,15 +202,31 @@ class DatabaseMigrator:
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir)
 
-        conn_str = f"DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={os.path.abspath(access_path)};"
-
         # Se il file non esiste, deve essere creato manualmente o con un template
         if not os.path.exists(access_path):
             print("NOTA: Il file Access deve essere creato manualmente prima della migrazione.")
             print("      Puoi copiare un file .accdb vuoto come template.")
             raise FileNotFoundError(f"File Access non trovato: {access_path}")
 
+        conn_str = f"DRIVER={{Microsoft Access Driver (*.mdb, *.accdb)}};DBQ={os.path.abspath(access_path)};"
         self.target_conn = pyodbc.connect(conn_str)
+
+        # Verifica se le tabelle esistono, altrimenti creale
+        cursor = self.target_conn.cursor()
+        existing_tables = [table.table_name for table in cursor.tables(tableType='TABLE')
+                         if not table.table_name.startswith('MSys')]
+
+        if 'Anagrafica_Operatori' not in existing_tables:
+            print("Tabelle non trovate nel database Access. Creazione tabelle...")
+            from src.database.db_creator import DatabaseCreator
+            # Chiudi connessione temporaneamente
+            self.target_conn.close()
+            # Crea tabelle
+            creator = DatabaseCreator(access_path)
+            creator.create_database()
+            # Riconnetti
+            self.target_conn = pyodbc.connect(conn_str)
+            print("Tabelle create con successo!")
 
     def _get_sqlite_tables(self):
         """Ottieni lista tabelle SQLite"""

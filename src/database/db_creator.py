@@ -15,11 +15,6 @@ class DatabaseCreator:
     def create_database(self):
         """Crea il database Access con tutte le tabelle necessarie"""
 
-        # Verifica se esiste già
-        if os.path.exists(self.db_path):
-            print(f"Database già esistente: {self.db_path}")
-            return
-
         # Crea il database Access (richiede Microsoft Access Database Engine)
         conn_str = (
             r'DRIVER={Microsoft Access Driver (*.mdb, *.accdb)};'
@@ -29,6 +24,18 @@ class DatabaseCreator:
         try:
             # Nota: su Windows con Access installato, questo crea il database
             conn = pyodbc.connect(conn_str)
+
+            # Verifica se le tabelle esistono già
+            cursor = conn.cursor()
+            existing_tables = [table.table_name for table in cursor.tables(tableType='TABLE')
+                              if not table.table_name.startswith('MSys')]
+
+            if 'Anagrafica_Operatori' in existing_tables:
+                print(f"Database già configurato con tabelle: {self.db_path}")
+                conn.close()
+                return
+
+            print(f"Creazione tabelle in: {self.db_path}")
             cursor = conn.cursor()
 
             # Tabella Anagrafica Operatori
