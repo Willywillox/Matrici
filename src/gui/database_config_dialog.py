@@ -6,7 +6,11 @@ from tkinter import ttk, messagebox, filedialog
 import os
 import sys
 
+# Add src folder to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add project root to path (for scripts folder)
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from database.db_config import DatabaseConfig
 
 
