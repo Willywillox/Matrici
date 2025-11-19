@@ -251,6 +251,10 @@ class DatabaseConfigDialog(tk.Toplevel):
                                       "Vuoi usare il nuovo database Access come database principale?"):
                     self.db_type_var.set('access')
                     self.path_var.set(access_path)
+                    # Salva automaticamente la configurazione
+                    self.config.set_access(access_path)
+                    messagebox.showinfo("Configurazione Salvata",
+                                       "Database Access configurato come principale.\n\nRiavviare l'applicazione per applicare le modifiche.")
             else:
                 messagebox.showerror("Errore Migrazione", "La migrazione ha riscontrato errori.")
 
@@ -299,6 +303,10 @@ class DatabaseConfigDialog(tk.Toplevel):
                                       "Vuoi usare il nuovo database SQLite come database principale?"):
                     self.db_type_var.set('sqlite')
                     self.path_var.set(sqlite_path)
+                    # Salva automaticamente la configurazione
+                    self.config.set_sqlite(sqlite_path)
+                    messagebox.showinfo("Configurazione Salvata",
+                                       "Database SQLite configurato come principale.\n\nRiavviare l'applicazione per applicare le modifiche.")
             else:
                 messagebox.showerror("Errore Migrazione", "La migrazione ha riscontrato errori.")
 
