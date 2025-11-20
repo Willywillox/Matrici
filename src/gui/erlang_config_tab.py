@@ -54,7 +54,7 @@ class ErlangConfigTab(ttk.Frame):
         # Colonne (aggiunte: Available%, Agenti, Min.Utile, Prod)
         columns = (
             'ID', 'Skill', 'Canale', 'AHT(s)', 'Concurr.', 'Shrink%',
-            'SL%', 'SL(s)', 'Interval', 'Available%', 'Agenti', 'Min.Utile', 'Prod/Int', 'Note'
+            'SL%', 'SL(s)', 'Interval', 'Available%', 'Agenti', 'Min.Utile', 'Prod/Int', 'Nota'
         )
 
         self.tree = ttk.Treeview(table_frame, columns=columns, show='headings',
@@ -79,13 +79,13 @@ class ErlangConfigTab(ttk.Frame):
             'Agenti': 60,
             'Min.Utile': 80,
             'Prod/Int': 70,
-            'Note': 150
+            'Nota': 150
         }
 
         for col in columns:
             self.tree.heading(col, text=col)
             width = column_widths.get(col, 100)
-            self.tree.column(col, width=width, anchor='center' if col != 'Note' else 'w')
+            self.tree.column(col, width=width, anchor='center' if col != 'Nota' else 'w')
 
         self.tree.pack(fill='both', expand=True)
 
@@ -113,7 +113,7 @@ class ErlangConfigTab(ttk.Frame):
             configs = self.db_manager.execute_query("""
                 SELECT ID, Skill, Tipo_Canale, AHT_Seconds, Concurrency,
                        Shrinkage, Service_Level_Target, Service_Level_Seconds,
-                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Nota
                 FROM Erlang_Config
                 ORDER BY Skill
             """)
@@ -1220,7 +1220,7 @@ class ErlangConfigDialog(tk.Toplevel):
             result = self.db_manager.execute_query("""
                 SELECT Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
                        Shrinkage, Service_Level_Target, Service_Level_Seconds,
-                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                       ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Nota
                 FROM Erlang_Config
                 WHERE ID = ?
             """, (self.config_id,))
@@ -1299,7 +1299,7 @@ class ErlangConfigDialog(tk.Toplevel):
                     INSERT INTO Erlang_Config (
                         Skill, Tipo_Canale, AHT_Seconds, Concurrency, Tempo_Pausa_Minuti,
                         Shrinkage, Service_Level_Target, Service_Level_Seconds,
-                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Note
+                        ASA_Target_Seconds, Occupancy_Target, Interval_Minutes, Nota
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """
                 params = (
@@ -1325,7 +1325,7 @@ class ErlangConfigDialog(tk.Toplevel):
                     UPDATE Erlang_Config
                     SET Tipo_Canale = ?, AHT_Seconds = ?, Concurrency = ?,
                         Shrinkage = ?, Service_Level_Target = ?, Service_Level_Seconds = ?,
-                        ASA_Target_Seconds = ?, Occupancy_Target = ?, Interval_Minutes = ?, Note = ?
+                        ASA_Target_Seconds = ?, Occupancy_Target = ?, Interval_Minutes = ?, Nota = ?
                     WHERE ID = ?
                 """
                 params = (

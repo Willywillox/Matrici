@@ -323,15 +323,15 @@ class TemplatesTab(ttk.Frame):
             # Dati di esempio
             data = [
                 {'Codice_Skill': 'CUSTOMER_CARE', 'Descrizione': 'Customer Care Generale',
-                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Premium', 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Premium', 'Nota': ''},
                 {'Codice_Skill': 'CUSTOMER_CARE', 'Descrizione': 'Customer Care Generale',
-                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Basic', 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 1, 'Microskill': 'Basic', 'Nota': ''},
                 {'Codice_Skill': 'TECHNICAL_SUPPORT', 'Descrizione': 'Supporto Tecnico',
-                 'Canale': 'Voice', 'Priorita': 2, 'Microskill': 'Advanced', 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 2, 'Microskill': 'Advanced', 'Nota': ''},
                 {'Codice_Skill': 'BACK_OFFICE', 'Descrizione': 'Back Office',
-                 'Canale': 'Email', 'Priorita': 3, 'Microskill': '', 'Note': ''},
+                 'Canale': 'Email', 'Priorita': 3, 'Microskill': '', 'Nota': ''},
                 {'Codice_Skill': 'SALES', 'Descrizione': 'Vendite',
-                 'Canale': 'Voice', 'Priorita': 4, 'Microskill': '', 'Note': ''},
+                 'Canale': 'Voice', 'Priorita': 4, 'Microskill': '', 'Nota': ''},
             ]
 
             df = pd.DataFrame(data)
@@ -373,15 +373,15 @@ class TemplatesTab(ttk.Frame):
             # Dati di esempio
             data = [
                 {'Codice_Giustificativo': 'FER', 'Descrizione': 'Ferie',
-                 'Tipologia': 'FerieROL', 'Note': 'Ferie ordinarie'},
+                 'Tipologia': 'FerieROL', 'Nota': 'Ferie ordinarie'},
                 {'Codice_Giustificativo': 'ROL', 'Descrizione': 'Riduzione Orario Lavoro',
-                 'Tipologia': 'FerieROL', 'Note': 'ROL'},
+                 'Tipologia': 'FerieROL', 'Nota': 'ROL'},
                 {'Codice_Giustificativo': 'MAL', 'Descrizione': 'Malattia',
-                 'Tipologia': 'Malattia', 'Note': 'Malattia certificata'},
+                 'Tipologia': 'Malattia', 'Nota': 'Malattia certificata'},
                 {'Codice_Giustificativo': 'PER', 'Descrizione': 'Permesso',
-                 'Tipologia': 'Assenze generiche', 'Note': 'Permesso retribuito'},
+                 'Tipologia': 'Assenze generiche', 'Nota': 'Permesso retribuito'},
                 {'Codice_Giustificativo': 'ASS', 'Descrizione': 'Assenza ingiustificata',
-                 'Tipologia': 'Assenze generiche', 'Note': 'Assenza non autorizzata'},
+                 'Tipologia': 'Assenze generiche', 'Nota': 'Assenza non autorizzata'},
             ]
 
             df = pd.DataFrame(data)
