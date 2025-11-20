@@ -1544,13 +1544,28 @@ Operatori in Produzione: {in_prod}
 
     def _row_to_dict(self, row):
         """Converte row database in dict"""
-        # pyodbc.Row (Access)
-        if hasattr(row, 'cursor_description'):
-            return {desc[0]: getattr(row, desc[0]) for desc in row.cursor_description}
         # sqlite3.Row
-        elif hasattr(row, 'keys'):
+        if hasattr(row, 'keys'):
             return {key: row[key] for key in row.keys()}
-        # Fallback per tuple/liste (non dovrebbe succedere con row_factory)
+        # pyodbc.Row (Access) - non ha keys() ma supporta accesso per nome
+        elif hasattr(row, '__getitem__'):
+            # Per pyodbc.Row dobbiamo iterare e costruire il dict manualmente
+            # Prova a ottenere i nomi delle colonne come attributi
+            try:
+                # pyodbc.Row supporta dir() per ottenere i nomi delle colonne
+                columns = [attr for attr in dir(row) if not attr.startswith('_')]
+                return {col: getattr(row, col) for col in columns if not callable(getattr(row, col))}
+            except:
+                # Fallback: costruisci dict dalle colonne note del forecast
+                return {
+                    'Data_Riferimento': row[1] if len(row) > 1 else None,
+                    'Fascia_Oraria': row[2] if len(row) > 2 else None,
+                    'Skill': row[3] if len(row) > 3 else None,
+                    'Volumi_Attesi': row[4] if len(row) > 4 else None,
+                    'Produttivita_Target': row[5] if len(row) > 5 else None,
+                    'FTE_Richiesti': row[6] if len(row) > 6 else None
+                }
+        # Fallback per tuple/liste
         else:
             print("[WARN] Row senza metadati, ritorno dict vuoto")
             return {}
