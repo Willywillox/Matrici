@@ -92,7 +92,14 @@ class DatabaseManager:
         else:
             cursor.execute(query)
 
-        return cursor.fetchall()
+        rows = cursor.fetchall()
+
+        # Per Access (pyodbc), converti Row objects in dict usando cursor.description
+        if not self.is_sqlite and rows and hasattr(cursor, 'description'):
+            columns = [column[0] for column in cursor.description]
+            return [dict(zip(columns, row)) for row in rows]
+
+        return rows
 
     def execute_update(self, query, params=None):
         """Esegue una query di update/insert/delete"""
