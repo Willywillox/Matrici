@@ -304,13 +304,13 @@ class OperatoreForm(tk.Toplevel):
             # Recupera microskill unici dalla tabella Skills
             microskills_skills = self.db_manager.execute_query(
                 """SELECT DISTINCT Microskill FROM Skills
-                   WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                   WHERE Microskill IS NOT NULL AND Microskill <> ''
                    ORDER BY Microskill"""
             )
             # Recupera microskill unici dalla tabella Anagrafica_Operatori
             microskills_ops = self.db_manager.execute_query(
                 """SELECT DISTINCT Microskill FROM Anagrafica_Operatori
-                   WHERE Microskill IS NOT NULL AND TRIM(Microskill) != ''
+                   WHERE Microskill IS NOT NULL AND Microskill <> ''
                    ORDER BY Microskill"""
             )
             self.db_manager.close()
