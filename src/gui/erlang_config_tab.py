@@ -1229,14 +1229,15 @@ class ErlangConfigDialog(tk.Toplevel):
                 cfg = result[0]
                 self.vars['skill'].set(cfg[0] or '')
                 self.vars['tipo_canale'].set(cfg[1] or 'Voice')
-                self.vars['aht_seconds'].set(cfg[2] or 180)
-                self.vars['concurrency'].set(cfg[3] or 1)
-                self.vars['shrinkage'].set((cfg[5] * 100) if cfg[5] else 30.0)
-                self.vars['service_level_target'].set((cfg[6] * 100) if cfg[6] else 80.0)
-                self.vars['service_level_seconds'].set(cfg[7] or 20)
-                self.vars['asa_target_seconds'].set(cfg[8] or 60)
+                self.vars['aht_seconds'].set(int(cfg[2]) if cfg[2] else 180)
+                self.vars['concurrency'].set(int(cfg[3]) if cfg[3] else 1)
+                # Converti esplicitamente a float per gestire stringhe da Access
+                self.vars['shrinkage'].set((float(cfg[5]) * 100) if cfg[5] else 30.0)
+                self.vars['service_level_target'].set((float(cfg[6]) * 100) if cfg[6] else 80.0)
+                self.vars['service_level_seconds'].set(int(cfg[7]) if cfg[7] else 20)
+                self.vars['asa_target_seconds'].set(int(cfg[8]) if cfg[8] else 60)
                 # Occupancy non più caricato - viene calcolato da Erlang C
-                self.vars['interval_minutes'].set(cfg[10] or 30)
+                self.vars['interval_minutes'].set(int(cfg[10]) if cfg[10] else 30)
                 self.vars['note'].set(cfg[11] or '')
 
                 self.on_canale_change()

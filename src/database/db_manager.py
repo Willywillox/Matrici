@@ -51,6 +51,7 @@ class DatabaseManager:
                     f'DBQ={os.path.abspath(self.db_path)};'
                 )
                 self.conn = pyodbc.connect(conn_str)
+                # pyodbc.Row supporta già accesso numerico (row[0]) e per attributo (row.column_name)
                 self.is_sqlite = False
             elif db_type == 'sqlserver':
                 conn_str = self.config.get_connection_string()
@@ -94,11 +95,8 @@ class DatabaseManager:
 
         rows = cursor.fetchall()
 
-        # Per Access (pyodbc), converti Row objects in dict usando cursor.description
-        if not self.is_sqlite and rows and hasattr(cursor, 'description'):
-            columns = [column[0] for column in cursor.description]
-            return [dict(zip(columns, row)) for row in rows]
-
+        # Sia sqlite3.Row che pyodbc.Row supportano accesso numerico (row[0])
+        # pyodbc dovrebbe già ritornare i tipi corretti da Access
         return rows
 
     def execute_update(self, query, params=None):

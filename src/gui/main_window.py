@@ -321,9 +321,10 @@ class MainWindow:
                 in_strao = row['In_Straordinario']
                 fte_eff = row['FTE_Effettivi']
 
-                fte_rich = row.get('FTE_Richiesti', 0)
-                delta = row.get('Delta_FTE', 0)
-                copertura = row.get('Copertura_%', 100)
+                # Converti esplicitamente a float per gestire stringhe da Access
+                fte_rich = float(row.get('FTE_Richiesti', 0) or 0)
+                delta = float(row.get('Delta_FTE', 0) or 0)
+                copertura = float(row.get('Copertura_%', 100) or 100)
 
                 # Colori in base alla copertura
                 tag = ''

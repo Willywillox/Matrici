@@ -1544,7 +1544,7 @@ Operatori in Produzione: {in_prod}
 
     def _row_to_dict(self, row):
         """Converte row database in dict"""
-        # sqlite3.Row
+        # sqlite3.Row - supporta dict-style access
         if hasattr(row, 'keys'):
             return {key: row[key] for key in row.keys()}
         # pyodbc.Row (Access) - usa cursor_description per ottenere i nomi delle colonne
@@ -1553,22 +1553,21 @@ Operatori in Produzione: {in_prod}
                 return {desc[0]: row[i] for i, desc in enumerate(row.cursor_description)}
             except Exception as e:
                 print(f"[ERROR] Errore conversione pyodbc.Row: {e}")
-                return {}
-        # Fallback: prova accesso posizionale generico
-        elif hasattr(row, '__getitem__') and hasattr(row, '__len__'):
-            try:
-                # Prova a usare l'accesso per indice e crea dict generico
-                result = {}
-                for i in range(len(row)):
-                    result[f'col_{i}'] = row[i]
-                print(f"[WARN] Row senza metadati, usato accesso posizionale: {result}")
-                return result
-            except:
-                print("[ERROR] Impossibile convertire row")
-                return {}
+                # Fallback: prova accesso numerico
+                try:
+                    return {f'col_{i}': row[i] for i in range(len(row))}
+                except:
+                    return {}
+        # Tupla o lista
+        elif isinstance(row, (tuple, list)):
+            # Senza nomi colonne, usa indici generici
+            return {f'col_{i}': row[i] for i in range(len(row))}
+        # Fallback: dict già esistente
+        elif isinstance(row, dict):
+            return row
         # Fallback finale
         else:
-            print("[WARN] Row tipo sconosciuto, ritorno dict vuoto")
+            print(f"[WARN] Row tipo sconosciuto: {type(row)}, ritorno dict vuoto")
             return {}
 
     def _parse_time(self, value):
