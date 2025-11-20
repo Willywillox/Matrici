@@ -1547,27 +1547,28 @@ Operatori in Produzione: {in_prod}
         # sqlite3.Row
         if hasattr(row, 'keys'):
             return {key: row[key] for key in row.keys()}
-        # pyodbc.Row (Access) - non ha keys() ma supporta accesso per nome
-        elif hasattr(row, '__getitem__'):
-            # Per pyodbc.Row dobbiamo iterare e costruire il dict manualmente
-            # Prova a ottenere i nomi delle colonne come attributi
+        # pyodbc.Row (Access) - usa cursor_description per ottenere i nomi delle colonne
+        elif hasattr(row, 'cursor_description'):
             try:
-                # pyodbc.Row supporta dir() per ottenere i nomi delle colonne
-                columns = [attr for attr in dir(row) if not attr.startswith('_')]
-                return {col: getattr(row, col) for col in columns if not callable(getattr(row, col))}
+                return {desc[0]: row[i] for i, desc in enumerate(row.cursor_description)}
+            except Exception as e:
+                print(f"[ERROR] Errore conversione pyodbc.Row: {e}")
+                return {}
+        # Fallback: prova accesso posizionale generico
+        elif hasattr(row, '__getitem__') and hasattr(row, '__len__'):
+            try:
+                # Prova a usare l'accesso per indice e crea dict generico
+                result = {}
+                for i in range(len(row)):
+                    result[f'col_{i}'] = row[i]
+                print(f"[WARN] Row senza metadati, usato accesso posizionale: {result}")
+                return result
             except:
-                # Fallback: costruisci dict dalle colonne note del forecast
-                return {
-                    'Data_Riferimento': row[1] if len(row) > 1 else None,
-                    'Fascia_Oraria': row[2] if len(row) > 2 else None,
-                    'Skill': row[3] if len(row) > 3 else None,
-                    'Volumi_Attesi': row[4] if len(row) > 4 else None,
-                    'Produttivita_Target': row[5] if len(row) > 5 else None,
-                    'FTE_Richiesti': row[6] if len(row) > 6 else None
-                }
-        # Fallback per tuple/liste
+                print("[ERROR] Impossibile convertire row")
+                return {}
+        # Fallback finale
         else:
-            print("[WARN] Row senza metadati, ritorno dict vuoto")
+            print("[WARN] Row tipo sconosciuto, ritorno dict vuoto")
             return {}
 
     def _parse_time(self, value):
