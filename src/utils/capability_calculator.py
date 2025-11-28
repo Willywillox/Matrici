@@ -171,7 +171,15 @@ class CapabilityCalculator:
                         from datetime import datetime as dt
                         op_date = dt.strptime(op_date_str, '%Y-%m-%d').date()
                     else:
-                        op_date = op_date_str
+                        # Gestisce datetime, Timestamp o date
+                        if isinstance(op_date_str, datetime):
+                            op_date = op_date_str.date()
+                        elif isinstance(op_date_str, pd.Timestamp):
+                            op_date = op_date_str.date()
+                        elif hasattr(op_date_str, 'date'):
+                            op_date = op_date_str.date()
+                        else:
+                            op_date = op_date_str
 
                     if op_date != data.date():
                         continue
