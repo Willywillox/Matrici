@@ -267,6 +267,7 @@ class MatriciApp:
 
         scroll_x = ttk.Scrollbar(table_frame, orient='horizontal')
         scroll_x.pack(side='bottom', fill='x')
+        self.scroll_x = scroll_x
 
         # Treeview - TUTTE le colonne dettagliate
         columns = ('ID', 'ID_SAP', 'Nome', 'Cognome', 'Contratto', 'FTE',
@@ -280,13 +281,24 @@ class MatriciApp:
                    'Giust_5_Tipo', 'Giust_5_Orario',
                    'Skill', 'Microskill', 'Postazione', 'Data')
 
-        self.tree_operatori = ttk.Treeview(table_frame, columns=columns, show='headings',
-                                           yscrollcommand=scroll_y.set, xscrollcommand=scroll_x.set)
+        self.columns_operatori = columns
 
-        scroll_y.config(command=self.tree_operatori.yview)
-        scroll_x.config(command=self.tree_operatori.xview)
+        # Filtri per colonna (2 righe: label + entry) con canvas scrollabile orizzontale
+        self.column_filters = {col: tk.StringVar() for col in columns}
 
-        # Intestazioni con larghezze
+        filters_canvas = tk.Canvas(table_frame, height=60)
+        filters_canvas.pack(fill='x', side='top', expand=False)
+        self.filters_canvas = filters_canvas
+
+        filters_frame = ttk.Frame(filters_canvas)
+        filters_canvas.create_window((0, 0), window=filters_frame, anchor='nw')
+
+        filters_frame.bind(
+            "<Configure>",
+            lambda e: filters_canvas.configure(scrollregion=filters_canvas.bbox("all"))
+        )
+
+        # Crea label e entry per ogni colonna
         widths = {
             'ID': 50, 'ID_SAP': 80, 'Nome': 100, 'Cognome': 100,
             'Contratto': 100, 'FTE': 50,
@@ -301,6 +313,22 @@ class MatriciApp:
             'Skill': 120, 'Microskill': 100, 'Postazione': 110, 'Data': 90
         }
 
+        for col_idx, col in enumerate(columns):
+            width_units = max(10, widths.get(col, 100) // 8)
+            ttk.Label(filters_frame, text=col, font=('Arial', 8, 'bold')).grid(
+                row=0, column=col_idx, padx=2, pady=(0, 2))
+            entry = ttk.Entry(filters_frame, textvariable=self.column_filters[col], width=width_units)
+            entry.grid(row=1, column=col_idx, padx=2, pady=(0, 5))
+            self.column_filters[col].trace('w', lambda *args: self.refresh_operatori())
+
+        self.tree_operatori = ttk.Treeview(table_frame, columns=columns, show='headings',
+                                           yscrollcommand=scroll_y.set, xscrollcommand=self.on_treeview_xscroll)
+
+        scroll_y.config(command=self.tree_operatori.yview)
+        scroll_x.config(command=self.sync_horizontal_scroll)
+        filters_canvas.configure(xscrollcommand=self.on_filters_xscroll)
+
+        # Intestazioni con larghezze
         for col in columns:
             self.tree_operatori.heading(col, text=col, command=lambda c=col: self.sort_operatori(c))
             self.tree_operatori.column(col, width=widths.get(col, 100), anchor='center')
@@ -797,8 +825,14 @@ class MatriciApp:
                         data_filtro = None
             operatori = self.db_manager.get_operatori(data_filtro)
 
-            # Filtro di ricerca globale
+            # Filtri di ricerca
             search_text = self.filter_search_var.get().lower().strip() if hasattr(self, 'filter_search_var') else ''
+            column_filters = {}
+            if hasattr(self, 'column_filters'):
+                for col, var in self.column_filters.items():
+                    value = var.get().strip().lower()
+                    if value:
+                        column_filters[col] = value
 
             # Clear
             for item in self.tree_operatori.get_children():
@@ -951,6 +985,22 @@ class MatriciApp:
                     if search_text not in row_text:
                         continue  # Salta questa riga se non matcha
 
+                # Applica filtri per singola colonna
+                if column_filters:
+                    matches_columns = True
+                    for idx, col in enumerate(self.columns_operatori):
+                        filter_value = column_filters.get(col)
+                        if not filter_value:
+                            continue
+
+                        cell_value = '' if row_data[idx] is None else str(row_data[idx]).lower()
+                        if filter_value not in cell_value:
+                            matches_columns = False
+                            break
+
+                    if not matches_columns:
+                        continue
+
                 self.tree_operatori.insert('', 'end', values=row_data)
                 count += 1
 
@@ -966,6 +1016,27 @@ class MatriciApp:
             messagebox.showerror("Errore", f"Errore nel caricamento operatori:\n{e}")
             import traceback
             traceback.print_exc()
+
+    def sync_horizontal_scroll(self, *args):
+        """Sincronizza lo scroll orizzontale tra filtri e tabella."""
+        if hasattr(self, 'tree_operatori'):
+            self.tree_operatori.xview(*args)
+        if hasattr(self, 'filters_canvas'):
+            self.filters_canvas.xview(*args)
+
+    def on_treeview_xscroll(self, first, last):
+        """Aggiorna scrollbar e canvas filtri quando si scrolla la tabella."""
+        if hasattr(self, 'scroll_x'):
+            self.scroll_x.set(first, last)
+        if hasattr(self, 'filters_canvas'):
+            self.filters_canvas.xview_moveto(first)
+
+    def on_filters_xscroll(self, first, last):
+        """Aggiorna scrollbar e treeview quando si scrolla la riga filtri."""
+        if hasattr(self, 'scroll_x'):
+            self.scroll_x.set(first, last)
+        if hasattr(self, 'tree_operatori'):
+            self.tree_operatori.xview_moveto(first)
 
     def sort_operatori(self, col):
         """Ordina tabella operatori"""
