@@ -5,6 +5,7 @@ import pyodbc
 import sqlite3
 import os
 from datetime import datetime, timedelta
+import time
 import pandas as pd
 from .db_config import DatabaseConfig
 
@@ -82,36 +83,83 @@ class DatabaseManager:
         if self.conn:
             self.conn.close()
 
+    MAX_RETRIES = 5
+    RETRY_DELAY = 1.0
+
     def execute_query(self, query, params=None):
-        """Esegue una query e ritorna i risultati"""
+        """Esegue una query e ritorna i risultati, con retry automatico per lock"""
         if not self.conn:
             self.connect()
 
-        cursor = self.conn.cursor()
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
+        last_error = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                cursor = self.conn.cursor()
+                try:
+                    if params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    rows = cursor.fetchall()
+                    return rows
+                finally:
+                    cursor.close()
+            except Exception as e:
+                last_error = e
+                # Verifica se e' un errore di lock
+                if self._is_locked_error(e):
+                    if attempt < self.MAX_RETRIES - 1:
+                        # Backoff esponenziale
+                        sleep_time = self.RETRY_DELAY * (1.5 ** attempt)
+                        print(f"[DB LOCKED] Database occupato, riprovo tra {sleep_time:.2f}s... (Tentativo {attempt+1}/{self.MAX_RETRIES})")
+                        time.sleep(sleep_time)
+                        continue
+                raise last_error
 
-        rows = cursor.fetchall()
-
-        # Sia sqlite3.Row che pyodbc.Row supportano accesso numerico (row[0])
-        # pyodbc dovrebbe già ritornare i tipi corretti da Access
-        return rows
+    def _is_locked_error(self, exception):
+        """Determina se l'errore è dovuto al file in uso/lock"""
+        msg = str(exception).lower()
+        lock_keywords = [
+            'file already in use', 
+            'could not use', 
+            'locked', 
+            'nessuna autorizzazione', 
+            'già in uso',
+            'hy000', # General ODBC error often used for locks
+            's1000'  # General error
+        ]
+        return any(keyword in msg for keyword in lock_keywords)
 
     def execute_update(self, query, params=None):
-        """Esegue una query di update/insert/delete"""
+        """Esegue una query di update/insert/delete con retry automatico"""
         if not self.conn:
             self.connect()
 
-        cursor = self.conn.cursor()
-        if params:
-            cursor.execute(query, params)
-        else:
-            cursor.execute(query)
-
-        self.conn.commit()
-        return cursor.rowcount
+        last_error = None
+        for attempt in range(self.MAX_RETRIES):
+            try:
+                cursor = self.conn.cursor()
+                try:
+                    if params:
+                        cursor.execute(query, params)
+                    else:
+                        cursor.execute(query)
+                    
+                    self.conn.commit()
+                    return cursor.rowcount
+                finally:
+                    cursor.close()
+            except Exception as e:
+                last_error = e
+                # Verifica se e' un errore di lock
+                if self._is_locked_error(e):
+                    if attempt < self.MAX_RETRIES - 1:
+                        sleep_time = self.RETRY_DELAY * (1.5 ** attempt)
+                        print(f"[DB LOCKED] Update fallito, riprovo tra {sleep_time:.2f}s... (Tentativo {attempt+1}/{self.MAX_RETRIES})")
+                        time.sleep(sleep_time)
+                        continue
+                raise last_error
 
     # === OPERATORI ===
 
